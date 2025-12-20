@@ -1,3 +1,8 @@
+# pip install ase
+# conda config --add channels conda-forge
+# conda install xtb-python
+# conda search xtb-python --channel conda-forge
+# conda install qcelemental ase
 from ase.io import read
 import numpy as np
 from ase.constraints import FixAtoms
@@ -8,6 +13,8 @@ from ase.visualize import view
 from ase.data import covalent_radii
 from ase.constraints import FixAtoms
 from ase.neighborlist import neighbor_list
+from xtb.ase.calculator import XTB
+from ase.optimize import BFGS
 
 covalent_radii[1] = 0.6
 
@@ -83,4 +90,10 @@ cut = 1.3           # Å check radius around H
 i, j, d = neighbor_list("ijd", slab, cutoff=[cut]*len(slab))
 close = [(jj, dd) for ii, jj, dd in zip(i, j, d) if ii == iH]
 
+
+
 print("Neighbors within 1.3 Å of H:", close)
+
+# Optimize structure with xTB
+slab.calc = XTB(method="GFN2-xTB")
+opt = BFGS(slab, )
