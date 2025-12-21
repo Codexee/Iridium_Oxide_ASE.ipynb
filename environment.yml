@@ -9,7 +9,4 @@ dependencies:
   - pytest
   - xtb
   - matplotlib
-  - pip:
-    - xtb
-  - pip:
-      - xtb-python
+  - xtb-python
