@@ -1,0 +1,13 @@
+name: iro2
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - numpy
+  - ase
+  - pytest
+  # optional, later:
+  # - matplotlib
+  # - pip:
+  #     - xtb-python
