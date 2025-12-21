@@ -106,9 +106,9 @@ print("Neighbors within 1.3 Å of H:", close)
 # Optimize structure with xTB
 slab.calc = XTB(method="GFN2-xTB")
 opt = BFGS(slab, trajectory=traj, logfile=log)
-    opt.run(fmax=fmax)
+opt.run(fmax=fmax)
 
-    return slab, close
+return slab, close
 
 if __name__ == "__main__":
     run_relaxation()
