@@ -3,6 +3,7 @@
 # conda install xtb-python
 # conda search xtb-python --channel conda-forge
 # conda install qcelemental ase
+from pathlib import Path
 from ase.io import read
 import numpy as np
 from ase.constraints import FixAtoms
@@ -16,7 +17,15 @@ from ase.neighborlist import neighbor_list
 from xtb.ase.calculator import XTB
 from ase.optimize import BFGS
 
-covalent_radii[1] = 0.6
+def run_relaxation(
+    qe_input: str = "slab_clean_2x2.in",
+    traj: str = "relax_H.traj",
+    log: str = "relax_H.log",
+    fmax: float = 0.05,
+    cut: float = 1.3,
+):
+
+    covalent_radii[1] = 0.6
 
 slab = read("slab_clean_2x2.in", format="espresso-in")
 print(slab)
@@ -96,4 +105,10 @@ print("Neighbors within 1.3 Å of H:", close)
 
 # Optimize structure with xTB
 slab.calc = XTB(method="GFN2-xTB")
-opt = BFGS(slab, )
+opt = BFGS(slab, trajectory=traj, logfile=log)
+    opt.run(fmax=fmax)
+
+    return slab, close
+
+if __name__ == "__main__":
+    run_relaxation()
