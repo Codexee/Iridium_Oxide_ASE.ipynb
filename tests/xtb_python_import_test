@@ -1,2 +1,2 @@
 def test_xtb_python_import():
-    import xtb  # noqa: F401
+    import xtb
