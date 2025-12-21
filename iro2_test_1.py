@@ -31,6 +31,8 @@ def run_relaxation(
     covalent_radii[1] = 0.6
 
     slab = read("slab_clean_2x2.in", format="espresso-in")
+    # xTB does not support PBC multipoles in this mode → treat slab as cluster
+    slab.set_pbc((False, False, False))
     print(slab)
     print("Atoms:", len(slab))
     print("Cell (Å):\n", slab.cell)
