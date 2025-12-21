@@ -7,6 +7,9 @@ dependencies:
   - numpy
   - ase
   - pytest
-  - xtb-python
-  # - matplotlib
-  # - pip:
+  - xtb
+  - matplotlib
+  - pip:
+    - xtb
+  - pip:
+      - xtb-python
