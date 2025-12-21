@@ -17,6 +17,9 @@ from ase.neighborlist import neighbor_list
 from xtb.ase.calculator import XTB
 from ase.optimize import BFGS
 
+Path("outputs").mkdir(exist_ok=True)
+
+
 def run_relaxation(
     qe_input: str = "slab_clean_2x2.in",
     traj: str = "relax_H.traj",
