@@ -1,0 +1,24 @@
+# IDE
+.idea/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Common simulation outputs (adjust as needed)
+*.traj
+*.xyz
+*.cif
+*.log
+*.out
