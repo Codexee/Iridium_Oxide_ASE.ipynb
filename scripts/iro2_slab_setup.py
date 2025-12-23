@@ -13,6 +13,7 @@ def setup_structure(
     oh_distance: float = 1.0,
     z_freeze: float = 20.0,
     neighbor_cutoff: float = 1.5,
+    surface_threshold: float = 1.5,  # New param for surface detection
     outputs_dir="outputs",
 ):
     # Create output directory
@@ -38,10 +39,10 @@ def setup_structure(
     
     surface_O = [
         i for i, s in enumerate(symbols)
-        if s == "O" and (z_top - positions[i, 2]) < 1.5
+        if s == "O" and (z_top - positions[i, 2]) < surface_threshold  # Use param
     ]
     
-    print(f"\nSurface O atoms (within 1.5 Å of top): {surface_O}")
+    print(f"\nSurface O atoms (within {surface_threshold} Å of top): {surface_O}")
     
     if o_index not in surface_O:
         print(f"  Warning: O[{o_index}] is not in surface list!")
@@ -71,7 +72,7 @@ def setup_structure(
     print(f"  Mobile: {n_mobile} atoms")
     
     # Check neighbors around H
-    i, j, d = neighbor_list("ijd", slab, cutoff=[neighbor_cutoff] * len(slab))
+    i, j, d = neighbor_list("ijd", slab, cutoff=neighbor_cutoff)  # Simplified cutoff
     neighbors = [(int(jj), float(dd)) for ii, jj, dd in zip(i, j, d) if ii == h_index]
     
     print(f"\nNeighbors within {neighbor_cutoff} Å of H:")
@@ -80,7 +81,7 @@ def setup_structure(
         pos = slab[jj].position
         print(f"  {sym}[{jj}]: {dd:.3f} Å at ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})")
 
-    # Build metadata dict (define this BEFORE writing/returning meta)
+    # Build metadata dict
     meta = {
         "input_file": str(input_file),
         "o_index": int(o_index),
@@ -88,7 +89,7 @@ def setup_structure(
         "oh_distance_A": float(oh_distance),
         "o_position_A": [float(x) for x in O_pos],
         "h_position_A": [float(x) for x in H_pos],
-        "zmax_A": float(zmax),
+        "zmax_A": float(z_top),  # Fixed: was zmax (undefined)
         "z_freeze_A": float(z_freeze),
         "neighbor_cutoff_A": float(neighbor_cutoff),
         "neighbors_of_H": [{"index": int(jj), "distance_A": float(dd)} for jj, dd in neighbors],
@@ -96,7 +97,6 @@ def setup_structure(
     }
 
     # Save prepared structure
-    outdir = Path(outputs_dir)
     (outdir / "structures").mkdir(parents=True, exist_ok=True)
     (outdir / "results").mkdir(parents=True, exist_ok=True)
 
@@ -118,7 +118,6 @@ def setup_structure(
     
     return slab, meta
 
-
 if __name__ == "__main__":
     import argparse
     
@@ -127,6 +126,7 @@ if __name__ == "__main__":
     parser.add_argument("--o-index", type=int, default=20, help="Oxygen atom index for H placement")
     parser.add_argument("--oh-dist", type=float, default=1.0, help="O-H distance (Å)")
     parser.add_argument("--z-freeze", type=float, default=20.0, help="Freeze atoms below this z (Å)")
+    parser.add_argument("--surface-threshold", type=float, default=1.5, help="Threshold for surface O detection (Å)")  # New arg
     parser.add_argument("--outputs", default="outputs", help="Outputs directory")
     
     args = parser.parse_args()
@@ -136,5 +136,6 @@ if __name__ == "__main__":
         o_index=args.o_index,
         oh_distance=args.oh_dist,
         z_freeze=args.z_freeze,
+        surface_threshold=args.surface_threshold,  # Pass new param
         outputs_dir=args.outputs
     )
