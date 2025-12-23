@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 from ase.io import read
-
+from ase.build import minimize_rotation_and_translation  # Added for alignment
 
 def analyze_results(outputs_dir: str = "outputs"):
     outdir = Path(outputs_dir)
@@ -15,7 +15,11 @@ def analyze_results(outputs_dir: str = "outputs"):
     if not results_path.exists():
         raise FileNotFoundError(f"Results JSON not found: {results_path}")
 
-    data = json.loads(results_path.read_text())
+    try:
+        data = json.loads(results_path.read_text())
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in {results_path}: {e}")
+
     print("[analysis] Optimization summary")
     for k in [
         "method",
@@ -33,11 +37,22 @@ def analyze_results(outputs_dir: str = "outputs"):
 
 
 def compare_structures(a_path: str, b_path: str):
-    a = read(a_path)
-    b = read(b_path)
+    try:
+        a = read(a_path)
+        b = read(b_path)
+    except Exception as e:
+        raise ValueError(f"Error reading structures: {e}")
+
     if len(a) != len(b):
         print(f"[compare] Different atom counts: {len(a)} vs {len(b)}")
         return
+
+    # Check if symbols match
+    if a.get_chemical_symbols() != b.get_chemical_symbols():
+        print("[compare] Warning: Atom symbols do not match—RMSD may be unreliable!")
+
+    # Align structures
+    minimize_rotation_and_translation(a, b)
 
     dr = a.positions - b.positions
     rmsd = float(np.sqrt((dr * dr).sum() / len(a)))
@@ -46,17 +61,34 @@ def compare_structures(a_path: str, b_path: str):
     print("[compare] Structure comparison")
     print(f"  - A: {a_path}")
     print(f"  - B: {b_path}")
-    print(f"  - RMSD (Å): {rmsd:.6f}")
+    print(f"  - RMSD (Å, after alignment): {rmsd:.6f}")
     print(f"  - max |Δz| (Å): {dz_max:.6f}")
 
 
 def traj_stats(traj_file: str):
-    # Reads last frame only if multi-frame file; ASE read() reads last by default for traj.
-    atoms = read(traj_file)
-    print("[traj] Basic info")
+    try:
+        # Try to read all frames for multi-frame trajectories
+        traj = read(traj_file, index=':')
+        if isinstance(traj, list):  # Multi-frame
+            print(f"[traj] Multi-frame trajectory with {len(traj)} frames")
+            z_mins = [atoms.positions[:, 2].min() for atoms in traj]
+            z_maxs = [atoms.positions[:, 2].max() for atoms in traj]
+            print(f"  - z-range across frames (Å): {min(z_mins):.3f} .. {max(z_maxs):.3f}")
+            atoms = traj[-1]  # Use last for other stats
+        else:  # Single frame
+            atoms = traj
+            print("[traj] Single-frame file")
+    except Exception as e:
+        # Fallback
+        try:
+            atoms = read(traj_file)
+            print("[traj] Assuming single frame (or read error)")
+        except Exception as e2:
+            raise ValueError(f"Error reading trajectory: {e2}")
+
     print(f"  - file: {traj_file}")
     print(f"  - atoms: {len(atoms)}")
-    print(f"  - z-range (Å): {atoms.positions[:,2].min():.3f} .. {atoms.positions[:,2].max():.3f}")
+    print(f"  - z-range (last frame, Å): {atoms.positions[:,2].min():.3f} .. {atoms.positions[:,2].max():.3f}")
 
 
 def main():
