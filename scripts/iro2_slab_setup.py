@@ -122,6 +122,7 @@ if __name__ == "__main__":
     parser.add_argument("--o-index", type=int, default=20, help="Oxygen atom index for H placement")
     parser.add_argument("--oh-dist", type=float, default=1.0, help="O-H distance (Å)")
     parser.add_argument("--z-freeze", type=float, default=20.0, help="Freeze atoms below this z (Å)")
+    parser.add_argument("--outputs", default="outputs", help="Outputs directory")
     
     args = parser.parse_args()
     
@@ -130,4 +131,5 @@ if __name__ == "__main__":
         o_index=args.o_index,
         oh_distance=args.oh_dist,
         z_freeze=args.z_freeze,
+        outputs_dir=args.outputs
     )
