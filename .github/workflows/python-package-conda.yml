@@ -31,8 +31,8 @@ jobs:
     - name: Run simulation
       run: |
         mkdir -p outputs
-        conda run -n base python iro2_test_1.py
-        ls -R .
+        conda run -n base python iro2_slab_setup.py --outputs outputs
+        ls -R outputs || true
         
     - name: Debug list outputs
       run: |
