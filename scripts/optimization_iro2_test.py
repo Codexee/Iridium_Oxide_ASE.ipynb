@@ -14,7 +14,7 @@ def run_optimization(
     output_dir: str = "results",
 ):
     # Create output directory
-    Path(output_dir).mkdir(exist_ok=True)
+    Path(output_dir).mkdir(parents=True, exist_ok=True)  # Added parents=True
     
     # Start timing
     start_time = time.time()
@@ -33,6 +33,7 @@ def run_optimization(
     slab = read(structure_file)
     
     # Check constraints
+    n_constrained = 0  # Initialize to avoid NameError
     if slab.constraints:
         n_constrained = sum(c.get_indices().size for c in slab.constraints)
         print(f" Constraints loaded: {n_constrained} frozen atoms")
@@ -87,9 +88,9 @@ def run_optimization(
     
     try:
         opt.run(fmax=fmax, steps=max_steps)
-        converged = True
+        converged = opt.converged  # Use optimizer's convergence flag
     except Exception as e:
-        print(f"\n  Optimization stopped: {e}")
+        print(f"\n  Optimization failed: {e}")
         converged = False
     
     # Get final results
@@ -110,7 +111,7 @@ def run_optimization(
     print(f"Energy change:      {e_final - e_initial:.6f} eV")
     print(f"Initial fmax:       {fmax_initial:.6f} eV/Å")
     print(f"Final fmax:         {fmax_final:.6f} eV/Å")
-    print(f"Converged:          {'YES' if fmax_final < fmax else 'NO'}")
+    print(f"Converged:          {'YES' if converged else 'NO'}")
     print(f"{'='*70}")
     
     # Save final structure
@@ -125,7 +126,7 @@ def run_optimization(
         "fmax_target": fmax,
         "max_steps": max_steps,
         "n_steps": n_steps,
-        "converged": fmax_final < fmax,
+        "converged": converged,
         "e_initial": float(e_initial),
         "e_final": float(e_final),
         "delta_e": float(e_final - e_initial),
@@ -145,10 +146,8 @@ def run_optimization(
     return slab, results
 
 
-#Quick test with limited steps
-
+# Quick test with limited steps
 def quick_test(structure_file: str, steps: int = 5):
- 
     print(f"\n{'='*70}")
     print(f"QUICK TEST MODE - {steps} STEPS ONLY")
     print(f"{'='*70}\n")
