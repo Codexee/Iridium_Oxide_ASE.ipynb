@@ -33,6 +33,15 @@ jobs:
         mkdir -p outputs
         conda run -n base python iro2_test_1.py
         ls -R .
+        
+    - name: Debug list outputs
+      run: |
+        echo "PWD=$(pwd)"
+        ls -la
+        echo "outputs dir:"
+        ls -la outputs || true
+        echo "find outputs:"
+        find outputs -maxdepth 3 -type f || true
 
     - name: Upload simulation outputs
       uses: actions/upload-artifact@v4
