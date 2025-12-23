@@ -33,10 +33,20 @@ jobs:
         conda install pytest
         pytest -q -m "not slow"
     - name: Set up Miniconda
-      uses: conda-incubator/setup-miniconda@v3
+    - uses: conda-incubator/setup-miniconda@v3
       with:
         auto-update-conda: true
         python-version: "3.10"
         environment-file: environment.yml
         activate-environment: base
         auto-activate-base: true
+    - name: Run simulation
+      run: |
+        mkdir -p outputs
+        conda run -n base python path/to/your_driver_script.py
+        ls -R outputs
+    - name: Upload simulation outputs
+    - uses: actions/upload-artifact@v4
+       with:
+       name: irO2-simulation-outputs
+       path: outputs/
