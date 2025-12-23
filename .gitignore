@@ -20,5 +20,5 @@ build/
 *.traj
 *.xyz
 *.cif
-*.log
+#*.log
 *.out
