@@ -81,27 +81,15 @@ def setup_structure(
         print(f"  {sym}[{jj}]: {dd:.3f} Å at ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})")
     
     # Save prepared structure
-    output_file = f"structures/slab_H_o{o_index}_ready.xyz"
-    write(output_file, slab)
-    
-    # Save metadata
-    metadata = {
-        "input_file": input_file,
-        "o_index": o_index,
-        "h_index": h_index,
-        "oh_distance": oh_distance,
-        "z_freeze": z_freeze,
-        "n_atoms": len(slab),
-        "n_frozen": n_frozen,
-        "n_mobile": n_mobile,
-        "neighbors": neighbors,
-        "h_position": H_pos.tolist(),
-        "o_position": O_pos.tolist(),
-    }
-    
-    meta_file = f"structures/metadata_o{o_index}.json"
-    with open(meta_file, 'w') as f:
-        json.dump(metadata, f, indent=2)
+    outdir = Path(outputs_dir)
+    (outdir / "structures").mkdir(parents=True, exist_ok=True)
+    (outdir / "results").mkdir(parents=True, exist_ok=True)
+
+    output_file = outdir / "structures" / f"slab_H_o{o_index}_ready.xyz"
+    write(str(output_file), slab)
+
+    meta_file = outdir / "results" / f"metadata_o{o_index}.json"
+    meta_file.write_text(json.dumps(meta, indent=2))
     
     print(f"\n{'='*60}")
     print(f" Structure prepared successfully!")
