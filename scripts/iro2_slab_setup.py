@@ -79,7 +79,22 @@ def setup_structure(
         sym = slab[jj].symbol
         pos = slab[jj].position
         print(f"  {sym}[{jj}]: {dd:.3f} Å at ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})")
-    
+
+    # Build metadata dict (define this BEFORE writing/returning meta)
+    meta = {
+        "input_file": str(input_file),
+        "o_index": int(o_index),
+        "h_index": int(h_index),
+        "oh_distance_A": float(oh_distance),
+        "o_position_A": [float(x) for x in O_pos],
+        "h_position_A": [float(x) for x in H_pos],
+        "zmax_A": float(zmax),
+        "z_freeze_A": float(z_freeze),
+        "neighbor_cutoff_A": float(neighbor_cutoff),
+        "neighbors_of_H": [{"index": int(jj), "distance_A": float(dd)} for jj, dd in neighbors],
+        "num_atoms_total": int(len(slab)),
+    }
+
     # Save prepared structure
     outdir = Path(outputs_dir)
     (outdir / "structures").mkdir(parents=True, exist_ok=True)
