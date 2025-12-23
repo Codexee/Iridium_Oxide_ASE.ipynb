@@ -21,7 +21,7 @@ def setup_structure(
     covalent_radii[1] = 0.6
     
     print(f"Reading {input_file}...")
-    slab = read(slab_clean_2x2, format="espresso-in")
+    slab = read(input_file, format="espresso-in")
     
     # Disable PBC for xTB
     slab.set_pbc((False, False, False))
