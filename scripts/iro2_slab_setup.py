@@ -101,7 +101,7 @@ def setup_structure(
     print(f"  python run_optimization.py {output_file}")
     print(f"{'='*60}")
     
-    return slab, metadata
+    return slab, meta
 
 
 if __name__ == "__main__":
