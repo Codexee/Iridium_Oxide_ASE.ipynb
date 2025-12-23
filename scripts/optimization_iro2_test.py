@@ -63,10 +63,10 @@ def run_optimization(
         return slab, {
             "converged": True,
             "initial": True,
-            "e_initial": e_initial,
-            "e_final": e_initial,
-            "fmax_initial": fmax_initial,
-            "fmax_final": fmax_initial,
+            "e_initial": float(e_initial),
+            "e_final": float(e_initial),
+            "fmax_initial": float(fmax_initial),
+            "fmax_final": float(fmax_initial),
             "n_steps": 0,
             "time_seconds": time.time() - start_time,
         }
@@ -88,7 +88,9 @@ def run_optimization(
     
     try:
         opt.run(fmax=fmax, steps=max_steps)
-        converged = opt.converged  # Use optimizer's convergence flag
+        # ASE version compatibility: converged can be a method or an attribute
+        conv = getattr(opt, "converged", False)
+        converged = bool(conv() if callable(conv) else conv)
     except Exception as e:
         print(f"\n  Optimization failed: {e}")
         converged = False
