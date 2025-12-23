@@ -17,7 +17,7 @@ build/
 .ipynb_checkpoints/
 
 # Common simulation outputs (adjust as needed)
-*.traj
+#*.traj
 *.xyz
 *.cif
 #*.log
