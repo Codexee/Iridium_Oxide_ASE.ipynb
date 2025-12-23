@@ -1,189 +1,102 @@
-from pathlib import Path
-from ase.io import read, write
-from xtb.ase.calculator import XTB
-from ase.optimize import BFGS
-import numpy as np
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
 import json
 import time
+from pathlib import Path
+
+import numpy as np
+from ase.io import read, write
+from ase.optimize import BFGS
+from xtb.ase.calculator import XTB
+
 
 def run_optimization(
     structure_file: str,
     fmax: float = 0.05,
     max_steps: int = 200,
     method: str = "GFN2-xTB",
-    output_dir: str = "results",
+    outputs_dir: str = "outputs",
 ):
-    # Create output directory
-    Path(output_dir).mkdir(exist_ok=True)
-    
-    # Start timing
-    start_time = time.time()
-    
-    print(f"{'='*70}")
-    print(f"XTB GEOMETRY OPTIMIZATION")
-    print(f"{'='*70}")
-    print(f"Structure: {structure_file}")
-    print(f"Method: {method}")
-    print(f"Convergence: fmax < {fmax} eV/Å")
-    print(f"Max steps: {max_steps}")
-    print(f"{'='*70}\n")
-    
-    # Load structure
-    print("Loading structure...")
-    slab = read(structure_file)
-    
-    # Check constraints
+    outdir = Path(outputs_dir)
+    (outdir / "results").mkdir(parents=True, exist_ok=True)
+
+    structure_path = Path(structure_file)
+    if not structure_path.exists():
+        raise FileNotFoundError(f"Structure file not found: {structure_path}")
+
+    slab = read(str(structure_path))
+
+    # Count constrained atoms (best-effort)
+    n_constrained = 0
     if slab.constraints:
-        n_constrained = sum(c.get_indices().size for c in slab.constraints)
-        print(f" Constraints loaded: {n_constrained} frozen atoms")
-    else:
-        print("WARNING: No constraints found!")
-    
-    print(f"Total atoms: {len(slab)}")
-    print(f"Mobile atoms: {len(slab) - n_constrained}")
-    
-    # Setup xTB calculator
-    print(f"\nSetting up {method} calculator...")
+        for c in slab.constraints:
+            try:
+                n_constrained += len(c.get_indices())
+            except Exception:
+                pass
+
+    print(f"[opt] Loaded: {structure_path} atoms={len(slab)} constrained~={n_constrained}")
+
+    # xTB calculator
     slab.calc = XTB(method=method)
-    
-    # Initial energy and forces
-    print("\nCalculating initial state...")
-    e_initial = slab.get_potential_energy()
+
+    # Run BFGS
+    traj_path = outdir / "slab_with_H_opt.traj"
+    log_path = outdir / "slab_with_H_opt.log"
+
+    start = time.time()
+    opt = BFGS(slab, trajectory=str(traj_path), logfile=str(log_path))
+    opt.run(fmax=float(fmax), steps=int(max_steps))
+    elapsed = time.time() - start
+
+    # Compute final energy/forces
+    energy = float(slab.get_potential_energy())
     forces = slab.get_forces()
-    fmax_initial = np.sqrt((forces**2).sum(axis=1)).max()
-    
-    print(f"  Initial energy: {e_initial:.6f} eV")
-    print(f"  Initial fmax:   {fmax_initial:.6f} eV/Å")
-    
-    if fmax_initial < fmax:
-        print(f"\n Already converged! No optimization needed.")
-        final_file = f"{output_dir}/{Path(structure_file).stem}_final.xyz"
-        write(final_file, slab)
-        return slab, {
-            "converged": True,
-            "initial": True,
-            "e_initial": e_initial,
-            "e_final": e_initial,
-            "fmax_initial": fmax_initial,
-            "fmax_final": fmax_initial,
-            "n_steps": 0,
-            "time_seconds": time.time() - start_time,
-        }
-    
-    # Setup output files
-    base_name = Path(structure_file).stem
-    traj_file = f"{output_dir}/{base_name}_opt.traj"
-    log_file = f"{output_dir}/{base_name}_opt.log"
-    
-    print(f"\n{'='*70}")
-    print(f"Starting optimization...")
-    print(f"{'='*70}")
-    print(f"Trajectory: {traj_file}")
-    print(f"Log file:   {log_file}")
-    print(f"{'='*70}\n")
-    
-    # Run optimization
-    opt = BFGS(slab, trajectory=traj_file, logfile=log_file)
-    
-    try:
-        opt.run(fmax=fmax, steps=max_steps)
-        converged = True
-    except Exception as e:
-        print(f"\n  Optimization stopped: {e}")
-        converged = False
-    
-    # Get final results
-    e_final = slab.get_potential_energy()
-    forces_final = slab.get_forces()
-    fmax_final = np.sqrt((forces_final**2).sum(axis=1)).max()
-    n_steps = opt.get_number_of_steps()
-    elapsed_time = time.time() - start_time
-    
-    # Print results
-    print(f"\n{'='*70}")
-    print(f"OPTIMIZATION COMPLETE")
-    print(f"{'='*70}")
-    print(f"Steps taken:        {n_steps}")
-    print(f"Time elapsed:       {elapsed_time:.1f} seconds ({elapsed_time/60:.1f} min)")
-    print(f"Initial energy:     {e_initial:.6f} eV")
-    print(f"Final energy:       {e_final:.6f} eV")
-    print(f"Energy change:      {e_final - e_initial:.6f} eV")
-    print(f"Initial fmax:       {fmax_initial:.6f} eV/Å")
-    print(f"Final fmax:         {fmax_final:.6f} eV/Å")
-    print(f"Converged:          {'YES' if fmax_final < fmax else 'NO'}")
-    print(f"{'='*70}")
-    
-    # Save final structure
-    final_file = f"{output_dir}/{base_name}_final.xyz"
-    write(final_file, slab)
-    print(f"\nFinal structure saved to: {final_file}")
-    
-    # Save results summary
+    fmax_final = float(np.linalg.norm(forces, axis=1).max()) if len(forces) else float("nan")
+
+    # Write final structure
+    write(str(outdir / "slab_with_H_opt.xyz"), slab)
+
     results = {
-        "structure_file": structure_file,
+        "structure_in": str(structure_path),
+        "structure_out_traj": str(traj_path),
+        "structure_out_xyz": str(outdir / "slab_with_H_opt.xyz"),
+        "logfile": str(log_path),
         "method": method,
-        "fmax_target": fmax,
-        "max_steps": max_steps,
-        "n_steps": n_steps,
-        "converged": fmax_final < fmax,
-        "e_initial": float(e_initial),
-        "e_final": float(e_final),
-        "delta_e": float(e_final - e_initial),
-        "fmax_initial": float(fmax_initial),
-        "fmax_final": float(fmax_final),
-        "time_seconds": elapsed_time,
-        "time_minutes": elapsed_time / 60,
+        "fmax_target": float(fmax),
+        "max_steps": int(max_steps),
+        "elapsed_s": float(elapsed),
+        "energy_eV_final": energy,
+        "fmax_eV_per_A_final": fmax_final,
+        "atoms": int(len(slab)),
+        "constrained_atoms_est": int(n_constrained),
     }
-    
-    results_file = f"{output_dir}/{base_name}_results.json"
-    with open(results_file, 'w') as f:
-        json.dump(results, f, indent=2)
-    
-    print(f"Results summary saved to: {results_file}")
-    print(f"{'='*70}\n")
-    
+
+    (outdir / "results" / "optimization_results.json").write_text(json.dumps(results, indent=2))
+
+    print(f"[opt] Done. E_final={energy:.6f} eV  fmax_final={fmax_final:.6f} eV/Å  time={elapsed:.1f}s")
     return slab, results
 
 
-#Quick test with limited steps
+def main():
+    p = argparse.ArgumentParser(description="Run xTB optimization on an ASE structure file.")
+    p.add_argument("--structure", default="outputs/slab_with_H.traj", help="Input structure (traj/xyz/in/etc)")
+    p.add_argument("--fmax", type=float, default=0.05)
+    p.add_argument("--steps", type=int, default=200)
+    p.add_argument("--method", default="GFN2-xTB")
+    p.add_argument("--outputs", default="outputs")
+    args = p.parse_args()
 
-def quick_test(structure_file: str, steps: int = 5):
- 
-    print(f"\n{'='*70}")
-    print(f"QUICK TEST MODE - {steps} STEPS ONLY")
-    print(f"{'='*70}\n")
-    
-    return run_optimization(
-        structure_file,
-        fmax=0.05,
-        max_steps=steps,
-        output_dir="test_results"
+    run_optimization(
+        structure_file=args.structure,
+        fmax=args.fmax,
+        max_steps=args.steps,
+        method=args.method,
+        outputs_dir=args.outputs,
     )
 
 
 if __name__ == "__main__":
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="Run xTB optimization")
-    parser.add_argument("structure", help="Prepared structure file (.xyz)")
-    parser.add_argument("--fmax", type=float, default=0.05, help="Force convergence (eV/Å)")
-    parser.add_argument("--steps", type=int, default=200, help="Maximum steps")
-    parser.add_argument("--method", default="GFN2-xTB", choices=["GFN1-xTB", "GFN2-xTB"], 
-                        help="xTB method (GFN1 is faster)")
-    parser.add_argument("--test", action="store_true", help="Quick test mode (5 steps)")
-    parser.add_argument("--output", default="results", help="Output directory")
-    
-    args = parser.parse_args()
-    
-    if args.test:
-        slab, results = quick_test(args.structure, steps=5)
-    else:
-        slab, results = run_optimization(
-            args.structure,
-            fmax=args.fmax,
-            max_steps=args.steps,
-            method=args.method,
-            output_dir=args.output,
-        )
-    
-    print("\n Done!")
+    main()
