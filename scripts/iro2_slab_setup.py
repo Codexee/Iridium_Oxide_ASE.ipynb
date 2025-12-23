@@ -1,11 +1,16 @@
-from pathlib import Path
-from ase.io import read, write
-from ase import Atom
-from ase.data import covalent_radii
-from ase.constraints import FixAtoms
-from ase.neighborlist import neighbor_list
-import numpy as np
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
 import json
+from pathlib import Path
+
+import numpy as np
+from ase import Atom
+from ase.constraints import FixAtoms
+from ase.io import read, write
+from ase.neighborlist import neighbor_list
+
 
 def setup_structure(
     input_file: str = "inputs/slab_clean_2x2.in",
@@ -13,121 +18,104 @@ def setup_structure(
     oh_distance: float = 1.0,
     z_freeze: float = 20.0,
     neighbor_cutoff: float = 1.5,
+    outputs_dir: str = "outputs",
 ):
-    # Create output directory
-    Path("structures").mkdir(exist_ok=True)
-    
-    # Adjust H covalent radius
-    covalent_radii[1] = 0.6
-    
-    print(f"Reading {input_file}...")
-    slab = read(input_file, format="espresso-in")
-    
-    # Disable PBC for xTB
-    slab.set_pbc((False, False, False))
-    
-    print(f"Initial structure: {len(slab)} atoms")
-    print(f"Cell: {slab.cell.cellpar()}")
-    
-    # Find surface oxygen atoms
-    positions = slab.get_positions()
-    symbols = slab.get_chemical_symbols()
-    z_top = positions[:, 2].max()
-    
-    surface_O = [
-        i for i, s in enumerate(symbols)
-        if s == "O" and (z_top - positions[i, 2]) < 1.5
-    ]
-    
-    print(f"\nSurface O atoms (within 1.5 Å of top): {surface_O}")
-    
-    if o_index not in surface_O:
-        print(f"  Warning: O[{o_index}] is not in surface list!")
-        print(f"   O[{o_index}] is at z={positions[o_index, 2]:.2f} Å")
-        print(f"   Top of slab: z={z_top:.2f} Å")
-    
-    # Add hydrogen atom
-    O_pos = slab.positions[o_index]
-    H_pos = O_pos + np.array([0.0, 0.0, oh_distance])
-    slab.append(Atom("H", position=H_pos))
+    """
+    Read slab, place H above a chosen O, freeze atoms below z_freeze,
+    and write outputs for the next step.
+    """
+    input_path = Path(input_file)
+    if not input_path.exists():
+        raise FileNotFoundError(f"Input file not found: {input_path}")
+
+    slab = read(str(input_path))
+
+    n0 = len(slab)
+    if not (0 <= o_index < n0):
+        raise IndexError(f"o_index={o_index} out of range for {n0} atoms (0..{n0-1})")
+
+    # Slab z-extent (for diagnostics)
+    zmax = slab.positions[:, 2].max()
+
+    # Position of selected O
+    o_pos = slab.positions[o_index].copy()
+
+    # Place H above O along +z
+    h_pos = o_pos + np.array([0.0, 0.0, float(oh_distance)])
+
+    # Sanity check: ensure H is above the slab top
+    if h_pos[2] <= zmax:
+        print(
+            f"[warn] H z={h_pos[2]:.3f} Å is not above slab top zmax={zmax:.3f} Å. "
+            "Raising H to be above slab."
+        )
+    h_pos[2] = zmax + float(oh_distance)
+
+    slab.append(Atom("H", position=h_pos))
     h_index = len(slab) - 1
-    
-    print(f"\nAdded H atom:")
-    print(f"  Index: {h_index}")
-    print(f"  Position: {H_pos}")
-    print(f"  Total atoms: {len(slab)}")
-    
-    # Freeze bottom layers
-    z = slab.positions[:, 2]
-    freeze_mask = z < z_freeze
+
+    slab.append(Atom("H", position=h_pos))
+    h_index = len(slab) - 1
+
+    # Freeze atoms below z_freeze
+    freeze_mask = slab.positions[:, 2] < float(z_freeze)
     slab.set_constraint(FixAtoms(mask=freeze_mask))
-    n_frozen = int(freeze_mask.sum())
-    n_mobile = len(slab) - n_frozen
-    
-    print(f"\nFreezing atoms below z={z_freeze:.1f} Å:")
-    print(f"  Frozen: {n_frozen} atoms")
-    print(f"  Mobile: {n_mobile} atoms")
-    
-    # Check neighbors around H
-    i, j, d = neighbor_list("ijd", slab, cutoff=[neighbor_cutoff] * len(slab))
-    neighbors = [(int(jj), float(dd)) for ii, jj, dd in zip(i, j, d) if ii == h_index]
-    
-    print(f"\nNeighbors within {neighbor_cutoff} Å of H:")
-    for jj, dd in neighbors:
-        sym = slab[jj].symbol
-        pos = slab[jj].position
-        print(f"  {sym}[{jj}]: {dd:.3f} Å at ({pos[0]:.2f}, {pos[1]:.2f}, {pos[2]:.2f})")
-    
-    # Save prepared structure
-    output_file = f"structures/slab_H_o{o_index}_ready.xyz"
-    write(output_file, slab)
-    
-    # Save metadata
-    metadata = {
-        "input_file": input_file,
-        "o_index": o_index,
-        "h_index": h_index,
-        "oh_distance": oh_distance,
-        "z_freeze": z_freeze,
-        "n_atoms": len(slab),
-        "n_frozen": n_frozen,
-        "n_mobile": n_mobile,
-        "neighbors": neighbors,
-        "h_position": H_pos.tolist(),
-        "o_position": O_pos.tolist(),
+
+    # Neighbors of H (for sanity check)
+    i, j, d = neighbor_list("ijd", slab, cutoff=float(neighbor_cutoff))
+    neigh = [(int(jj), float(dd)) for ii, jj, dd in zip(i, j, d) if int(ii) == h_index]
+    neigh_sorted = sorted(neigh, key=lambda x: x[1])
+
+    outdir = Path(outputs_dir)
+    (outdir / "results").mkdir(parents=True, exist_ok=True)
+
+    # Write structures
+    write(str(outdir / "slab_with_H.traj"), slab)
+    write(str(outdir / "slab_with_H.xyz"), slab)
+
+    meta = {
+        "input_file": str(input_path),
+        "num_atoms_initial": int(n0),
+        "num_atoms_total": int(len(slab)),
+        "o_index": int(o_index),
+        "h_index": int(h_index),
+        "oh_distance_A": float(oh_distance),
+        "z_freeze_A": float(z_freeze),
+        "neighbor_cutoff_A": float(neighbor_cutoff),
+        "o_position_A": [float(x) for x in o_pos],
+        "h_position_A": [float(x) for x in h_pos],
+        "num_frozen": int(np.count_nonzero(freeze_mask)),
+        "neighbors_of_H": [{"index": idx, "distance_A": dist} for idx, dist in neigh_sorted],
     }
-    
-    meta_file = f"structures/metadata_o{o_index}.json"
-    with open(meta_file, 'w') as f:
-        json.dump(metadata, f, indent=2)
-    
-    print(f"\n{'='*60}")
-    print(f" Structure prepared successfully!")
-    print(f"{'='*60}")
-    print(f"Output files:")
-    print(f"  Structure: {output_file}")
-    print(f"  Metadata:  {meta_file}")
-    print(f"\nNext step:")
-    print(f"  python run_optimization.py {output_file}")
-    print(f"{'='*60}")
-    
-    return slab, metadata
+    (outdir / "results" / "slab_setup_metadata.json").write_text(json.dumps(meta, indent=2))
+
+    print(f"[slab_setup] Loaded {input_path} (atoms={n0})")
+    print(f"[slab_setup] Placed H at index {h_index} above O index {o_index} by {oh_distance} Å")
+    print(f"[slab_setup] Frozen atoms: {meta['num_frozen']} (z < {z_freeze} Å)")
+    print(f"[slab_setup] H neighbors within {neighbor_cutoff} Å: {neigh_sorted}")
+
+    return slab, meta
 
 
-if __name__ == "__main__":
-    import argparse
-    
-    parser = argparse.ArgumentParser(description="Prepare H* adsorption structure")
-    parser.add_argument("--input", default="inputs/slab_clean_2x2.in", help="Input structure file")
-    parser.add_argument("--o-index", type=int, default=20, help="Oxygen atom index for H placement")
-    parser.add_argument("--oh-dist", type=float, default=1.0, help="O-H distance (Å)")
-    parser.add_argument("--z-freeze", type=float, default=20.0, help="Freeze atoms below this z (Å)")
-    
-    args = parser.parse_args()
-    
-    slab, meta = setup_structure(
+def main():
+    p = argparse.ArgumentParser(description="IrO2 slab setup: place H above O, freeze bottom layers, write outputs/")
+    p.add_argument("--input", default="inputs/slab_clean_2x2.in")
+    p.add_argument("--o-index", type=int, default=20, help="0-based index of O atom to adsorb H onto")
+    p.add_argument("--oh-dist", type=float, default=1.0)
+    p.add_argument("--z-freeze", type=float, default=20.0)
+    p.add_argument("--neighbor-cutoff", type=float, default=1.5)
+    p.add_argument("--outputs", default="outputs")
+    args = p.parse_args()
+
+    setup_structure(
         input_file=args.input,
         o_index=args.o_index,
         oh_distance=args.oh_dist,
         z_freeze=args.z_freeze,
+        neighbor_cutoff=args.neighbor_cutoff,
+        outputs_dir=args.outputs,
     )
+
+
+if __name__ == "__main__":
+    main()
