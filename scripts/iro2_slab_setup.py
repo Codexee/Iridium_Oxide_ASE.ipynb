@@ -13,9 +13,11 @@ def setup_structure(
     oh_distance: float = 1.0,
     z_freeze: float = 20.0,
     neighbor_cutoff: float = 1.5,
+    outputs_dir="outputs",
 ):
     # Create output directory
-    Path("structures").mkdir(exist_ok=True)
+    outdir = Path(outputs_dir)
+    outdir.mkdir(parents=True, exist_ok=True)
     
     # Adjust H covalent radius
     covalent_radii[1] = 0.6
