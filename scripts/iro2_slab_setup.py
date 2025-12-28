@@ -100,7 +100,7 @@ def setup_structure(
     (outdir / "structures").mkdir(parents=True, exist_ok=True)
     (outdir / "results").mkdir(parents=True, exist_ok=True)
 
-    output_file = outdir / "structures" / f"slab_H_o{o_index}_ready.xyz"
+    output_file = outdir / "structures" / f"slab_H_o{o_index}_ready.traj"
     write(str(output_file), slab)
 
     meta_file = outdir / "results" / f"metadata_o{o_index}.json"
