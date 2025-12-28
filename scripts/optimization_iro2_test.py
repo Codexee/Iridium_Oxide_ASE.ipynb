@@ -5,6 +5,7 @@ from ase.optimize import BFGS
 import numpy as np
 import json
 import time
+from ase.constraints import FixAtoms
 
 def run_optimization(
     structure_file: str,
@@ -34,11 +35,15 @@ def run_optimization(
     
     # Check constraints
     n_constrained = 0  # Initialize to avoid NameError
-    if slab.constraints:
-        n_constrained = sum(c.get_indices().size for c in slab.constraints)
-        print(f" Constraints loaded: {n_constrained} frozen atoms")
-    else:
-        print("WARNING: No constraints found!")
+    if not slab.constraints:
+        print("No constraints found. Re-applying FixAtoms by z-threshold...")
+        z = slab.positions[:, 2]
+        zmin = z.min()
+        z_freeze = zmin + 2.0  # freeze bottom 2 Å as an example
+        mask = z < z_freeze
+        slab.set_constraint(FixAtoms(mask=mask))
+        n_constrained = int(mask.sum())
+        print(f" Applied FixAtoms: {n_constrained} frozen atoms (z < {z_freeze:.2f} Å)")
     
     print(f"Total atoms: {len(slab)}")
     print(f"Mobile atoms: {len(slab) - n_constrained}")
@@ -58,7 +63,7 @@ def run_optimization(
     
     if fmax_initial < fmax:
         print(f"\n Already converged! No optimization needed.")
-        final_file = f"{output_dir}/{Path(structure_file).stem}_final.xyz"
+        final_file = f"{output_dir}/{Path(structure_file).stem}_final.traj"
         write(final_file, slab)
         return slab, {
             "converged": True,
@@ -72,9 +77,11 @@ def run_optimization(
         }
     
     # Setup output files
+    outdir = Path(output_dir)
+    outdir.mkdir(parents=True, exist_ok=True)
     base_name = Path(structure_file).stem
-    traj_file = f"{output_dir}/{base_name}_opt.traj"
-    log_file = f"{output_dir}/{base_name}_opt.log"
+    traj_file = outdir / f"{output_dir}/{base_name}_opt.traj"
+    log_file = outdir / f"{output_dir}/{base_name}_opt.log"
     
     print(f"\n{'='*70}")
     print(f"Starting optimization...")
@@ -84,17 +91,18 @@ def run_optimization(
     print(f"{'='*70}\n")
     
     # Run optimization
-    opt = BFGS(slab, trajectory=traj_file, logfile=log_file)
-    
+    opt = BFGS(slab, trajectory=traj_file, logfile=log_file, maxstep=0.04)
+    print(f"DEBUG: calling opt.run(fmax={fmax}, steps={max_steps})")
     try:
         opt.run(fmax=fmax, steps=max_steps)
         # ASE version compatibility: converged can be a method or an attribute
         #conv = getattr(opt, "converged", False)
         #converged = bool(conv() if callable(conv) else conv)
-        converged = None
+        #converged = None
     except Exception as e:
         print(f"\n  Optimization failed: {e}")
         converged = False
+    print(f"DEBUG: opt.get_number_of_steps() -> {opt.get_number_of_steps()}")
     
     # Get final results
     e_final = slab.get_potential_energy()
@@ -118,10 +126,13 @@ def run_optimization(
     print(f"Converged:          {'YES' if converged else 'NO'}")
     print(f"{'='*70}")
     
-    # Save final structure
-    final_file = f"{output_dir}/{base_name}_final.xyz"
-    write(final_file, slab)
-    print(f"\nFinal structure saved to: {final_file}")
+    final_traj = outdir / f"{base_name}_final.traj"
+    write(final_traj, slab)
+    print(f"\nFinal structure saved to: {final_traj}")
+
+    # Maybe keep xyz for visualization convenience
+    final_xyz = output_dir / f"{base}_relaxed.xyz"
+    write(final_xyz, slab)
     
     # Save results summary
     results = {
@@ -140,7 +151,7 @@ def run_optimization(
         "time_minutes": elapsed_time / 60,
     }
     
-    results_file = f"{output_dir}/{base_name}_results.json"
+    results_file = outdir / f"{output_dir}/{base_name}_results.json"
     with open(results_file, 'w') as f:
         json.dump(results, f, indent=2)
     
@@ -168,9 +179,9 @@ if __name__ == "__main__":
     import argparse
     
     parser = argparse.ArgumentParser(description="Run xTB optimization")
-    parser.add_argument("structure", help="Prepared structure file (.xyz)")
+    parser.add_argument("structure", help="Prepared structure file (.traj)")
     parser.add_argument("--fmax", type=float, default=0.05, help="Force convergence (eV/Å)")
-    parser.add_argument("--steps", type=int, default=200, help="Maximum steps")
+    parser.add_argument("--steps", type=int, default=250, help="Maximum steps")
     parser.add_argument("--method", default="GFN2-xTB", choices=["GFN1-xTB", "GFN2-xTB"], 
                         help="xTB method (GFN1 is faster)")
     parser.add_argument("--test", action="store_true", help="Quick test mode (5 steps)")
