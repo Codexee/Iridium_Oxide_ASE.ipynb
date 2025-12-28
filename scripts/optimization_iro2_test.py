@@ -9,7 +9,7 @@ import time
 def run_optimization(
     structure_file: str,
     fmax: float = 0.05,
-    max_steps: int = 200,
+    max_steps: int = 250,
     method: str = "GFN2-xTB",
     output_dir: str = "results",
 ):
