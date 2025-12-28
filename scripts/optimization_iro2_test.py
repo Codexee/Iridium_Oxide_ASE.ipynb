@@ -89,8 +89,9 @@ def run_optimization(
     try:
         opt.run(fmax=fmax, steps=max_steps)
         # ASE version compatibility: converged can be a method or an attribute
-        conv = getattr(opt, "converged", False)
-        converged = bool(conv() if callable(conv) else conv)
+        #conv = getattr(opt, "converged", False)
+        #converged = bool(conv() if callable(conv) else conv)
+        converged = None
     except Exception as e:
         print(f"\n  Optimization failed: {e}")
         converged = False
@@ -99,6 +100,7 @@ def run_optimization(
     e_final = slab.get_potential_energy()
     forces_final = slab.get_forces()
     fmax_final = np.sqrt((forces_final**2).sum(axis=1)).max()
+    converged = bool(fmax_final <= fmax)
     n_steps = opt.get_number_of_steps()
     elapsed_time = time.time() - start_time
     
