@@ -10,7 +10,7 @@ from ase.io import read
 from ase.build import minimize_rotation_and_translation  # Added for alignment
 
 def analyze_results(outputs_dir):
-    outdir = Path(results)
+    outdir = Path(outputs_dir)
     results_path = outdir / "slab_H_o20_ready_results.json"
     if not results_path.exists():
         raise FileNotFoundError(f"Results JSON not found: {results_path}")
