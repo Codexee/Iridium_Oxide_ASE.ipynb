@@ -131,7 +131,7 @@ def run_optimization(
     print(f"\nFinal structure saved to: {final_traj}")
 
     # Maybe keep xyz for visualization convenience
-    final_xyz = output_dir / f"{base}_relaxed.xyz"
+    final_xyz = output_dir / f"{base_name}_relaxed.xyz"
     write(final_xyz, slab)
     
     # Save results summary
