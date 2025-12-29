@@ -10,15 +10,13 @@ from ase.io import read
 from ase.build import minimize_rotation_and_translation  # Added for alignment
 
 def analyze_results(outputs_dir):
-    outdir = Path(outputs_dir)
-    results_path = outdir / "slab_H_o20_ready_results.json"
-    if not results_path.exists():
+    results_path = f"results/slab_H_o20_ready_results.json"
+    outdir = Path(results_path)
+    if not outdir.exists():
         raise FileNotFoundError(f"Results JSON not found: {results_path}")
 
-    try:
-        data = json.loads(results_path.read_text())
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Invalid JSON in {results_path}: {e}")
+    with open(results_path) as f:
+        data = json.load(f)
 
     print("[analysis] Optimization summary")
     for k in [
@@ -33,6 +31,7 @@ def analyze_results(outputs_dir):
     ]:
         if k in data:
             print(f"  - {k}: {data[k]}")
+
     return data
 
 
