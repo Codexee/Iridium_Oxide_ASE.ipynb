@@ -22,7 +22,6 @@ jobs:
         conda run -n base python -m pip install flake8
         conda run -n base flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
         conda run -n base flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-        conda run 
     - name: Test with pytest
       run: |
         conda run -n base python -m pip install pytest
@@ -33,7 +32,7 @@ jobs:
         mkdir -p outputs
         conda run -n base python scripts/iro2_slab_setup.py --outputs outputs
         conda run -n base python scripts/optimization_iro2_test.py outputs/structures/slab_H_o20_ready.traj --output results
-        conda run -n base python scripts/optimization_iro2_3.py
+        conda run -n base python scripts/optimization_iro2_3.py --output outputs-3
         ls -R outputs || true
         
     - name: Debug list outputs
