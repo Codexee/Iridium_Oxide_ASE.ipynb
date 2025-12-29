@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import os
 
 import numpy as np
 from ase.io import read
@@ -18,6 +19,8 @@ def analyze_results(outputs_dir):
     with open(results_path) as f:
         data = json.load(f)
 
+    result = {}
+
     print("[analysis] Optimization summary")
     for k in [
         "method",
@@ -31,6 +34,11 @@ def analyze_results(outputs_dir):
     ]:
         if k in data:
             print(f"  - {k}: {data[k]}")
+            result[k] = data[k]
+
+    os.mkdir(f"{outputs_dir}")
+    with open(f"{outputs_dir}/optimization.json", "w") as f:
+        f.write(json.dumps(result, indent=2))
 
     return data
 
@@ -92,7 +100,7 @@ def traj_stats(traj_file: str):
 
 def main():
     p = argparse.ArgumentParser(description="Analyze IrO2 optimization outputs.")
-    p.add_argument("--outputs", default="outputs")
+    p.add_argument("--outputs", default="outputs-3")
     p.add_argument("--compare", nargs=2, metavar=("A", "B"))
     p.add_argument("--traj")
     args = p.parse_args()
