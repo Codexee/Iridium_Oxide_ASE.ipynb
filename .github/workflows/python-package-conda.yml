@@ -32,7 +32,7 @@ jobs:
         mkdir -p outputs
         conda run -n base python scripts/iro2_slab_setup.py --outputs outputs
         conda run -n base python scripts/optimization_iro2_test.py outputs/structures/slab_H_o20_ready.traj --output results
-        conda run -n base python scripts/optimization_iro2_3.py --output outputs-3
+        conda run -n base python scripts/optimization_iro2_3.py --outputs outputs-3
         ls -R outputs || true
         
     - name: Debug list outputs
