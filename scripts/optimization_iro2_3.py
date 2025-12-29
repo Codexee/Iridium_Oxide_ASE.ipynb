@@ -100,7 +100,7 @@ def traj_stats(traj_file: str):
 
 def main():
     p = argparse.ArgumentParser(description="Analyze IrO2 optimization outputs.")
-    p.add_argument("--outputs", default="outputs-3")
+    p.add_argument("--outputs", default="outputs")
     p.add_argument("--compare", nargs=2, metavar=("A", "B"))
     p.add_argument("--traj")
     args = p.parse_args()
