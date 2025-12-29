@@ -10,7 +10,7 @@ from ase.constraints import FixAtoms
 def run_optimization(
     structure_file: str,
     fmax: float = 0.05,
-    max_steps: int = 2,
+    max_steps: int = 250,
     method: str = "GFN2-xTB",
     output_dir: str = "results",
 ):
@@ -181,7 +181,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run xTB optimization")
     parser.add_argument("structure", help="Prepared structure file (.traj)")
     parser.add_argument("--fmax", type=float, default=0.05, help="Force convergence (eV/Å)")
-    parser.add_argument("--steps", type=int, default=2, help="Maximum steps")
+    parser.add_argument("--steps", type=int, default=250, help="Maximum steps")
     parser.add_argument("--method", default="GFN2-xTB", choices=["GFN1-xTB", "GFN2-xTB"],
                         help="xTB method (GFN1 is faster)")
     parser.add_argument("--test", action="store_true", help="Quick test mode (5 steps)")
