@@ -36,8 +36,8 @@ def analyze_results(outputs_dir):
             print(f"  - {k}: {data[k]}")
             result[k] = data[k]
 
-    Path(outputs_dir).mkdir(parents=True, exist_ok=True)
-    with open(f"{outputs_dir}/optimization.json", "w") as f:
+    Path(f"{outputs_dir}/results").mkdir(parents=True, exist_ok=True)
+    with open(f"{outputs_dir}/results/optimization.json", "w") as f:
         json.dump(result, f, indent=2)
 
     return data
