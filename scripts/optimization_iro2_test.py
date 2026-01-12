@@ -15,7 +15,9 @@ def run_optimization(
     output_dir: str = "results",
 ):
     # Create output directory
-    Path(output_dir).mkdir(parents=True, exist_ok=True)  # Added parents=True
+    #Path(output_dir).mkdir(parents=True, exist_ok=True)  # Added parents=True
+    outdir_path = Path(output_dir)
+    outdir_path.mkdir(parents=True, exist_ok=True)
 
     # Start timing
     start_time = time.time()
@@ -39,7 +41,7 @@ def run_optimization(
         print("No constraints found. Re-applying FixAtoms by z-threshold...")
         z = slab.positions[:, 2]
         zmin = z.min()
-        z_freeze = zmin + 2.0  # freeze bottom 2 Å as an example
+        z_freeze = zmin + 5.0  # freeze bottom 2 Å as an example
         mask = z < z_freeze
         slab.set_constraint(FixAtoms(mask=mask))
         n_constrained = int(mask.sum())
@@ -63,7 +65,7 @@ def run_optimization(
 
     if fmax_initial < fmax:
         print(f"\n Already converged! No optimization needed.")
-        final_file = f"{output_dir}/{Path(structure_file).stem}_final.traj"
+        final_file = outdir_path / f"{Path(structure_file).stem}_final.traj"
         write(final_file, slab)
         return slab, {
             "converged": True,
@@ -77,11 +79,11 @@ def run_optimization(
         }
 
     # Setup output files
-    outdir = Path(output_dir)
-    outdir.mkdir(parents=True, exist_ok=True)
+    #outdir = Path(output_dir)
+    #outdir.mkdir(parents=True, exist_ok=True)
     base_name = Path(structure_file).stem
-    traj_file = outdir / f"/{base_name}_opt.traj"
-    log_file = outdir / f"/{base_name}_opt.log"
+    traj_file = outdir_path / f"{base_name}_opt.traj"
+    log_file = outdir_path / f"{base_name}_opt.log"
 
     print(f"\n{'='*70}")
     print(f"Starting optimization...")
@@ -91,7 +93,7 @@ def run_optimization(
     print(f"{'='*70}\n")
 
     # Run optimization
-    opt = BFGS(slab, trajectory=traj_file, logfile=log_file, maxstep=0.04)
+    opt = BFGS(slab, trajectory=str(traj_file), logfile=str(log_file), maxstep=0.04)
     print(f"DEBUG: calling opt.run(fmax={fmax}, steps={max_steps})")
     try:
         opt.run(fmax=fmax, steps=max_steps)
@@ -126,12 +128,12 @@ def run_optimization(
     print(f"Converged:          {'YES' if converged else 'NO'}")
     print(f"{'='*70}")
 
-    final_traj = f"{outdir}/{base_name}_final.traj"
+    final_traj = outdir_path / f"{base_name}_final.traj"
     write(final_traj, slab)
     print(f"\nFinal structure saved to: {final_traj}")
 
     # Maybe keep xyz for visualization convenience
-    final_xyz = f"{outdir}/{base_name}_relaxed.xyz"
+    final_xyz = outdir_path / f"{base_name}_relaxed.xyz"
     write(final_xyz, slab)
 
     # Save results summary
@@ -151,7 +153,7 @@ def run_optimization(
         "time_minutes": elapsed_time / 60,
     }
 
-    results_file = f"{output_dir}/{base_name}_results.json"
+    results_file = outdir_path / f"{base_name}_results.json"
     with open(results_file, 'w') as f:
         json.dump(results, f, indent=2)
 
