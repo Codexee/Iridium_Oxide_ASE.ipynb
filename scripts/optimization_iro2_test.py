@@ -41,7 +41,7 @@ def run_optimization(
         print("No constraints found. Re-applying FixAtoms by z-threshold...")
         z = slab.positions[:, 2]
         zmin = z.min()
-        z_freeze = zmin + 5.0  # freeze bottom 2 Å as an example
+        z_freeze = zmin + 5.0  # freeze bottom 5 Å as an example
         mask = z < z_freeze
         slab.set_constraint(FixAtoms(mask=mask))
         n_constrained = int(mask.sum())
@@ -100,37 +100,40 @@ def run_optimization(
     {"fmax": 0.08, "steps": 200, "maxstep": 0.06},
     {"fmax": fmax, "steps": max_steps, "maxstep": 0.04},
     ]
-
+    total_steps = 0
+    
     for i, st in enumerate(schedule, 1):
         print(f"\n--- Stage {i}/{len(schedule)}: fmax={st['fmax']} steps={st['steps']} maxstep={st['maxstep']} ---")
         opt = BFGS(slab, trajectory=str(traj_file), logfile=str(log_file), maxstep=st["maxstep"])
         opt.run(fmax=st["fmax"], steps=st["steps"])
-
+        stage_steps = opt.get_number_of_steps()
+        total_steps += stage_steps
         forces_now = slab.get_forces()
         fmax_now = float(np.sqrt((forces_now**2).sum(axis=1)).max())
         print(f"Stage {i} done: fmax_now={fmax_now:.6f} eV/Å")
 
-        if fmax_now <= st["fmax"]:
+        if fmax_now <= fmax:
         # stage satisfied; continue to next tighter stage
-            continue
-
-    try:
-        opt.run(fmax=fmax, steps=max_steps)
-        # ASE version compatibility: converged can be a method or an attribute
-        #conv = getattr(opt, "converged", False)
-        #converged = bool(conv() if callable(conv) else conv)
-        #converged = None
-    except Exception as e:
-        print(f"\n  Optimization failed: {e}")
-        converged = False
-    print(f"DEBUG: opt.get_number_of_steps() -> {opt.get_number_of_steps()}")
+            print("Reached final target early, stopping schedule.")
+            break
+    
+    # try:
+    #     opt.run(fmax=fmax, steps=max_steps)
+    #     # ASE version compatibility: converged can be a method or an attribute
+    #     #conv = getattr(opt, "converged", False)
+    #     #converged = bool(conv() if callable(conv) else conv)
+    #     #converged = None
+    # except Exception as e:
+    #     print(f"\n  Optimization failed: {e}")
+    #     converged = False
+    # print(f"DEBUG: opt.get_number_of_steps() -> {opt.get_number_of_steps()}")
 
     # Get final results
     e_final = slab.get_potential_energy()
     forces_final = slab.get_forces()
     fmax_final = np.sqrt((forces_final**2).sum(axis=1)).max()
     converged = bool(fmax_final <= fmax)
-    n_steps = opt.get_number_of_steps()
+    n_steps = total_steps
     elapsed_time = time.time() - start_time
 
     # Print results
@@ -170,7 +173,16 @@ def run_optimization(
         "fmax_final": float(fmax_final),
         "time_seconds": elapsed_time,
         "time_minutes": elapsed_time / 60,
-    }
+        "base_name": base_name,
+        "input_structure": str(Path(structure_file)),
+        "trajectory_file": str(traj_file),
+        "log_file": str(log_file),
+        "final_traj": str(final_traj),
+        "final_xyz": str(final_xyz),
+        "n_steps_total": total_steps,
+        "n_steps_last_stage": stage_steps,
+
+        }
 
     results_file = outdir_path / f"{base_name}_results.json"
     with open(results_file, 'w') as f:
