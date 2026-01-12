@@ -93,8 +93,27 @@ def run_optimization(
     print(f"{'='*70}\n")
 
     # Run optimization
-    opt = BFGS(slab, trajectory=str(traj_file), logfile=str(log_file), maxstep=0.04)
-    print(f"DEBUG: calling opt.run(fmax={fmax}, steps={max_steps})")
+    #opt = BFGS(slab, trajectory=str(traj_file), logfile=str(log_file), maxstep=0.04)
+    #print(f"DEBUG: calling opt.run(fmax={fmax}, steps={max_steps})")
+    schedule = [
+    {"fmax": 0.20, "steps": 150, "maxstep": 0.10},
+    {"fmax": 0.08, "steps": 200, "maxstep": 0.06},
+    {"fmax": fmax, "steps": max_steps, "maxstep": 0.04},
+    ]
+
+    for i, st in enumerate(schedule, 1):
+        print(f"\n--- Stage {i}/{len(schedule)}: fmax={st['fmax']} steps={st['steps']} maxstep={st['maxstep']} ---")
+        opt = BFGS(slab, trajectory=str(traj_file), logfile=str(log_file), maxstep=st["maxstep"])
+        opt.run(fmax=st["fmax"], steps=st["steps"])
+
+        forces_now = slab.get_forces()
+        fmax_now = float(np.sqrt((forces_now**2).sum(axis=1)).max())
+        print(f"Stage {i} done: fmax_now={fmax_now:.6f} eV/Å")
+
+        if fmax_now <= st["fmax"]:
+        # stage satisfied; continue to next tighter stage
+            continue
+
     try:
         opt.run(fmax=fmax, steps=max_steps)
         # ASE version compatibility: converged can be a method or an attribute
