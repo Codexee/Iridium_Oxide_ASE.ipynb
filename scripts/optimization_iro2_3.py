@@ -47,20 +47,19 @@ def analyze_results(outputs_dir):
             result[outk] = data[ink]
 
 
-    print("[analysis] Optimization summary")
+   print("[analysis] Optimization summary")
     for k in [
         "method",
         "structure_in",
         "structure_out_xyz",
+        "structure_out_traj",
         "energy_eV_final",
         "fmax_eV_per_A_final",
         "elapsed_s",
-        "atoms",
-        "constrained_atoms_est",
+        "steps",
     ]:
         if k in result:
-            print(f"  - {k}: {data[k]}")
-            result[k] = data[k]
+           print(f"  - {k}: {result.get(k)}")
 
     Path(f"{outputs_dir}/results").mkdir(parents=True, exist_ok=True)
     with open(f"{outputs_dir}/results/optimization.json", "w") as f:
