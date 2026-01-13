@@ -11,15 +11,41 @@ from ase.io import read
 from ase.build import minimize_rotation_and_translation  # Added for alignment
 
 def analyze_results(outputs_dir):
-    results_path = Path(outputs_dir) / "results" / "slab_H_o20_ready_results.json"
-    outdir = Path(results_path)
-    if not outdir.exists():
-        raise FileNotFoundError(f"Results JSON not found: {results_path}")
+    #results_path = Path(outputs_dir) / "results" / "slab_H_o20_ready_results.json"
+    outdir = Path(outputs_dir)
+    candidates = sorted((outdir / "results").glob("*_results.json"))
+    if not candidates:
+        raise FileNotFoundError(f"No *_results.json found under {outdir/'results'}")
+    results_path = candidates[-1]  # or pick by mtime
+    data = json.loads(results_path.read_text())
 
-    with open(results_path) as f:
-        data = json.load(f)
-
+    keymap = {
+        "method": "method",
+        "structure_in": "structure_file",
+        "structure_out_xyz": "final_xyz",
+        "structure_out_traj": "final_traj",
+        "energy_eV_final": "e_final",
+        "energy_eV_initial": "e_initial",
+        "fmax_eV_per_A_final": "fmax_final",
+        "fmax_eV_per_A_initial": "fmax_initial",
+        "elapsed_s": "time_seconds",
+        "steps": "n_steps",
+    }
+    # Enrich with atom counts if we can read the final structure
+    atoms_obj = None
+    final_traj = data.get("final_traj")
+    if final_traj and Path(final_traj).exists():
+        atoms_obj = read(final_traj)
+        data["atoms"] = len(atoms_obj)
+        # crude constrained estimate if constraints exist
+        data["constrained_atoms_est"] = sum(
+            len(getattr(c, "get_indices", lambda: [])()) for c in getattr(atoms_obj, "constraints", [])
+        )
     result = {}
+    for outk, ink in keymap.items():
+        if ink in data:
+            result[outk] = data[ink]
+
 
     print("[analysis] Optimization summary")
     for k in [
@@ -32,14 +58,15 @@ def analyze_results(outputs_dir):
         "atoms",
         "constrained_atoms_est",
     ]:
-        if k in data:
-            print(f"  - {k}: {data[k]}")
-            result[k] = data[k]
+    if k in result:
+        print(f"  - {k}: {data[k]}")
+        result[k] = data[k]
 
     Path(f"{outputs_dir}/results").mkdir(parents=True, exist_ok=True)
     with open(f"{outputs_dir}/results/optimization.json", "w") as f:
         json.dump(result, f, indent=2)
-
+    with open(outdir / "results" / "optimization_full.json", "w") as f:
+        json.dump(data, f, indent=2)
     return data
 
 
