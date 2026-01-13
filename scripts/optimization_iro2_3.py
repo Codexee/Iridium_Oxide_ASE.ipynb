@@ -58,9 +58,9 @@ def analyze_results(outputs_dir):
         "atoms",
         "constrained_atoms_est",
     ]:
-    if k in result:
-        print(f"  - {k}: {data[k]}")
-        result[k] = data[k]
+        if k in result:
+            print(f"  - {k}: {data[k]}")
+            result[k] = data[k]
 
     Path(f"{outputs_dir}/results").mkdir(parents=True, exist_ok=True)
     with open(f"{outputs_dir}/results/optimization.json", "w") as f:
