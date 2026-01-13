@@ -11,12 +11,14 @@ from ase.io import read
 from ase.build import minimize_rotation_and_translation  # Added for alignment
 
 def analyze_results(outputs_dir):
-    #results_path = Path(outputs_dir) / "results" / "slab_H_o20_ready_results.json"
     outdir = Path(outputs_dir)
-    candidates = sorted((outdir / "results").glob("*_results.json"))
+    results_dir = outdir / "results"
+
+    candidates = sorted(results_dir.glob("*_results.json"))
     if not candidates:
-        raise FileNotFoundError(f"No *_results.json found under {outdir/'results'}")
-    results_path = candidates[-1]  # or pick by mtime
+        raise FileNotFoundError(f"No *_results.json found under {results_dir}")
+
+    results_path = candidates[-1]
     data = json.loads(results_path.read_text())
 
     keymap = {
@@ -31,23 +33,13 @@ def analyze_results(outputs_dir):
         "elapsed_s": "time_seconds",
         "steps": "n_steps",
     }
-    # Enrich with atom counts if we can read the final structure
-    atoms_obj = None
-    final_traj = data.get("final_traj")
-    if final_traj and Path(final_traj).exists():
-        atoms_obj = read(final_traj)
-        data["atoms"] = len(atoms_obj)
-        # crude constrained estimate if constraints exist
-        data["constrained_atoms_est"] = sum(
-            len(getattr(c, "get_indices", lambda: [])()) for c in getattr(atoms_obj, "constraints", [])
-        )
+
     result = {}
     for outk, ink in keymap.items():
         if ink in data:
             result[outk] = data[ink]
 
-
-   print("[analysis] Optimization summary")
+    print("[analysis] Optimization summary")
     for k in [
         "method",
         "structure_in",
@@ -59,13 +51,16 @@ def analyze_results(outputs_dir):
         "steps",
     ]:
         if k in result:
-           print(f"  - {k}: {result.get(k)}")
+            print(f"  - {k}: {result[k]}")
 
-    Path(f"{outputs_dir}/results").mkdir(parents=True, exist_ok=True)
-    with open(f"{outputs_dir}/results/optimization.json", "w") as f:
+    results_dir.mkdir(parents=True, exist_ok=True)
+
+    with open(results_dir / "optimization.json", "w") as f:
         json.dump(result, f, indent=2)
-    with open(outdir / "results" / "optimization_full.json", "w") as f:
+
+    with open(results_dir / "optimization_full.json", "w") as f:
         json.dump(data, f, indent=2)
+
     return data
 
 
