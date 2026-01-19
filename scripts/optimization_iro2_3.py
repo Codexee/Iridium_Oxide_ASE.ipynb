@@ -4,22 +4,27 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-import os
+import re
 
 import numpy as np
 from ase.io import read
-from ase.build import minimize_rotation_and_translation  # Added for alignment
+from ase.build import minimize_rotation_and_translation
 
-def analyze_results(outputs_dir):
+
+def _safe_stem(s: str) -> str:
+    # Keep filenames safe and short-ish
+    s = s.strip()
+    s = re.sub(r"[^A-Za-z0-9_.-]+", "_", s)
+    return s[:180] if len(s) > 180 else s
+
+
+def analyze_all_results(outputs_dir: str):
     outdir = Path(outputs_dir)
     results_dir = outdir / "results"
 
     candidates = sorted(results_dir.glob("*_results.json"))
     if not candidates:
         raise FileNotFoundError(f"No *_results.json found under {results_dir}")
-
-    results_path = candidates[-1]
-    data = json.loads(results_path.read_text())
 
     keymap = {
         "method": "method",
@@ -32,54 +37,69 @@ def analyze_results(outputs_dir):
         "fmax_eV_per_A_initial": "fmax_initial",
         "elapsed_s": "time_seconds",
         "steps": "n_steps",
+        "converged": "converged",
     }
 
-    result = {}
-    for outk, ink in keymap.items():
-        if ink in data:
-            result[outk] = data[ink]
+    index = []
 
-    print("[analysis] Optimization summary")
-    for k in [
-        "method",
-        "structure_in",
-        "structure_out_xyz",
-        "structure_out_traj",
-        "energy_eV_final",
-        "fmax_eV_per_A_final",
-        "elapsed_s",
-        "steps",
-    ]:
-        if k in result:
-            print(f"  - {k}: {result[k]}")
+    print(f"[analysis] Found {len(candidates)} result file(s) in {results_dir}")
 
-    results_dir.mkdir(parents=True, exist_ok=True)
+    for results_path in candidates:
+        data = json.loads(results_path.read_text())
 
-    with open(results_dir / "optimization.json", "w") as f:
-        json.dump(result, f, indent=2)
+        # Prefer deriving stem from the input structure filename (more stable)
+        structure_in = str(data.get("structure_file", "unknown_structure"))
+        stem = _safe_stem(Path(structure_in).stem)
 
-    with open(results_dir / "optimization_full.json", "w") as f:
-        json.dump(data, f, indent=2)
+        # Fallback: use the results file stem
+        if stem in ("", "unknown_structure"):
+            stem = _safe_stem(results_path.stem.replace("_results", ""))
 
-    return data
+        result = {}
+        for outk, ink in keymap.items():
+            if ink in data:
+                result[outk] = data[ink]
+
+        # Write per-structure summaries (no overwrites across different structures)
+        opt_path = results_dir / f"optimization_{stem}.json"
+        opt_full_path = results_dir / f"optimization_full_{stem}.json"
+
+        opt_path.write_text(json.dumps(result, indent=2))
+        opt_full_path.write_text(json.dumps(data, indent=2))
+
+        index.append(
+            {
+                "stem": stem,
+                "results_json": str(results_path),
+                "optimization_json": str(opt_path),
+                "optimization_full_json": str(opt_full_path),
+                "energy_eV_final": result.get("energy_eV_final"),
+                "fmax_eV_per_A_final": result.get("fmax_eV_per_A_final"),
+                "converged": result.get("converged"),
+            }
+        )
+
+        print(f"[analysis] Wrote: {opt_path.name}, {opt_full_path.name}")
+
+    # Write an index for easy downstream consumption
+    index_path = results_dir / "optimization_index.json"
+    index_path.write_text(json.dumps(index, indent=2))
+    print(f"[analysis] Wrote index: {index_path.name}")
+
+    return index
 
 
 def compare_structures(a_path: str, b_path: str):
-    try:
-        a = read(a_path)
-        b = read(b_path)
-    except Exception as e:
-        raise ValueError(f"Error reading structures: {e}")
+    a = read(a_path)
+    b = read(b_path)
 
     if len(a) != len(b):
         print(f"[compare] Different atom counts: {len(a)} vs {len(b)}")
         return
 
-    # Check if symbols match
     if a.get_chemical_symbols() != b.get_chemical_symbols():
         print("[compare] Warning: Atom symbols do not match—RMSD may be unreliable!")
 
-    # Align structures
     minimize_rotation_and_translation(a, b)
 
     dr = a.positions - b.positions
@@ -94,25 +114,16 @@ def compare_structures(a_path: str, b_path: str):
 
 
 def traj_stats(traj_file: str):
-    try:
-        # Try to read all frames for multi-frame trajectories
-        traj = read(traj_file, index=':')
-        if isinstance(traj, list):  # Multi-frame
-            print(f"[traj] Multi-frame trajectory with {len(traj)} frames")
-            z_mins = [atoms.positions[:, 2].min() for atoms in traj]
-            z_maxs = [atoms.positions[:, 2].max() for atoms in traj]
-            print(f"  - z-range across frames (Å): {min(z_mins):.3f} .. {max(z_maxs):.3f}")
-            atoms = traj[-1]  # Use last for other stats
-        else:  # Single frame
-            atoms = traj
-            print("[traj] Single-frame file")
-    except Exception as e:
-        # Fallback
-        try:
-            atoms = read(traj_file)
-            print("[traj] Assuming single frame (or read error)")
-        except Exception as e2:
-            raise ValueError(f"Error reading trajectory: {e2}")
+    traj = read(traj_file, index=":")
+    if isinstance(traj, list):
+        print(f"[traj] Multi-frame trajectory with {len(traj)} frames")
+        z_mins = [atoms.positions[:, 2].min() for atoms in traj]
+        z_maxs = [atoms.positions[:, 2].max() for atoms in traj]
+        print(f"  - z-range across frames (Å): {min(z_mins):.3f} .. {max(z_maxs):.3f}")
+        atoms = traj[-1]
+    else:
+        atoms = traj
+        print("[traj] Single-frame file")
 
     print(f"  - file: {traj_file}")
     print(f"  - atoms: {len(atoms)}")
@@ -127,7 +138,7 @@ def main():
     args = p.parse_args()
 
     if not args.compare and not args.traj:
-        analyze_results(args.outputs)
+        analyze_all_results(args.outputs)
 
     if args.compare:
         compare_structures(args.compare[0], args.compare[1])
