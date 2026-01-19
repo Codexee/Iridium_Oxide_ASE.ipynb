@@ -35,26 +35,26 @@ jobs:
         mkdir -p outputs
         conda run -n base python scripts/iro2_slab_setup.py --batch-nearby-k 8 --center-o-index 20 --outputs outputs
 
-        # Collect all generated ready structures (batch + any future layout)
         mkdir -p outputs/results
 
+        # Find all prepared structures from setup (works for batch layout)
         shopt -s globstar nullglob
         ready_trajs=(outputs/**/structures/*_ready.traj)
 
         echo "Found ${#ready_trajs[@]} ready structure(s)"
         if [ "${#ready_trajs[@]}" -eq 0 ]; then
           echo "ERROR: No *_ready.traj files found under outputs/**/structures/"
-          find outputs -maxdepth 5 -type f || true
+          find outputs -maxdepth 6 -type f || true
           exit 1
         fi
 
-        # Run the optimizer once per structure
+        # Run optimization once per structure
         for traj in "${ready_trajs[@]}"; do
           echo "Optimizing: ${traj}"
           conda run -n base python scripts/optimization_iro2_test.py "${traj}" --output outputs/results
         done
 
-        # Keep your downstream step if you still want it
+        # Analyze ALL results (updated script will avoid overwriting)
         conda run -n base python scripts/optimization_iro2_3.py --outputs outputs
 
         ls -R outputs || true
