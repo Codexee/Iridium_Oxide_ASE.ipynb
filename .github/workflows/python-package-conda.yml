@@ -28,12 +28,37 @@ jobs:
         conda run -n base pytest -q -m "not slow"
 
     - name: Run simulation
+      shell: bash
       run: |
+        set -euo pipefail
+
         mkdir -p outputs
         conda run -n base python scripts/iro2_slab_setup.py --batch-nearby-k 8 --center-o-index 20 --outputs outputs
-        conda run -n base python scripts/optimization_iro2_test.py outputs/structures/slab_H_o20_ready.traj --output outputs/results
+
+        # Collect all generated ready structures (batch + any future layout)
+        mkdir -p outputs/results
+
+        shopt -s globstar nullglob
+        ready_trajs=(outputs/**/structures/*_ready.traj)
+
+        echo "Found ${#ready_trajs[@]} ready structure(s)"
+        if [ "${#ready_trajs[@]}" -eq 0 ]; then
+          echo "ERROR: No *_ready.traj files found under outputs/**/structures/"
+          find outputs -maxdepth 5 -type f || true
+          exit 1
+        fi
+
+        # Run the optimizer once per structure
+        for traj in "${ready_trajs[@]}"; do
+          echo "Optimizing: ${traj}"
+          conda run -n base python scripts/optimization_iro2_test.py "${traj}" --output outputs/results
+        done
+
+        # Keep your downstream step if you still want it
         conda run -n base python scripts/optimization_iro2_3.py --outputs outputs
+
         ls -R outputs || true
+
 
     - name: Debug list outputs
       run: |
