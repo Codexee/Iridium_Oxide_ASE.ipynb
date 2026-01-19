@@ -30,7 +30,7 @@ jobs:
     - name: Run simulation
       run: |
         mkdir -p outputs
-        conda run -n base python scripts/iro2_slab_setup.py --outputs outputs
+        conda run -n base python scripts/iro2_slab_setup.py --batch-nearby-k 8 --center-o-index 20 --outputs outputs
         conda run -n base python scripts/optimization_iro2_test.py outputs/structures/slab_H_o20_ready.traj --output outputs/results
         conda run -n base python scripts/optimization_iro2_3.py --outputs outputs
         ls -R outputs || true
