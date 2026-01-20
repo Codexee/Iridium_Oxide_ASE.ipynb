@@ -24,28 +24,45 @@ jobs:
           activate-environment: iro2
           auto-activate-base: false
 
-      - name: Download latest simulation outputs artifact from previous successful run
+      - name: Download latest simulation outputs artifact from previous run
         env:
-          GH_TOKEN: ${{ github.token }}
+        GH_TOKEN: ${{ github.token }}
+        shell: bash -l {0}
         run: |
           set -euo pipefail
 
-          RUN_ID=$(gh run list \
+          ART="irO2-simulation-outputs"
+
+          # List recent successful runs and find the first one that contains the artifact
+          RUN_IDS=$(gh run list \
             --workflow "python-package-conda.yml" \
             --status success \
-            --limit 20 \
+            --limit 50 \
             --json databaseId \
-            --jq '.[0].databaseId')
+            --jq '.[].databaseId')
 
-          if [ -z "${RUN_ID}" ]; then
-            echo "ERROR: No successful prior run found."
+          FOUND=""
+          for RID in $RUN_IDS; do
+            if gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RID}/artifacts" --jq '.artifacts[].name' | grep -qx "$ART"; then
+              FOUND="$RID"
+              break
+            fi
+          done
+
+          if [ -z "$FOUND" ]; then
+            echo "ERROR: No previous successful run contains artifact '$ART'."
+            echo "Trigger the workflow manually (Actions → Run workflow) to generate it once."
             exit 1
           fi
 
-          gh run download "${RUN_ID}" --name "irO2-simulation-outputs" --dir .
+          echo "Found artifact '$ART' in run $FOUND. Downloading..."
+          gh run download "$FOUND" --name "$ART" --dir .
 
-          echo "Downloaded outputs:"
-          find outputs -maxdepth 4 -type f | head -n 200 || true
+          echo "After download, workspace contains:"
+          ls -la
+          echo "Outputs tree:"
+          find outputs -maxdepth 3 -type f | head -n 200
+
 
       - name: Build ising_dataset.json from downloaded outputs
         shell: bash -l {0}
