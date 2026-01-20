@@ -1,76 +1,103 @@
-name: Python Package using Conda
+name: IrO2 CI
 
-on: [push]
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
 
 jobs:
-  build-linux:
+  fit-ising:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Miniconda
-      uses: conda-incubator/setup-miniconda@v3
-      with:
-        auto-update-conda: true
-        environment-file: environment.yml
-        activate-environment: base
-        auto-activate-base: true
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          environment-file: environment.yml
+          activate-environment: base
+          auto-activate-base: true
 
-    - name: Lint with flake8
-      run: |
-        conda run -n base python -m pip install flake8
-        conda run -n base flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        conda run -n base flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Test with pytest
-      run: |
-        conda run -n base python -m pip install pytest
-        conda run -n base pytest -q -m "not slow"
+      - name: Download latest simulation outputs artifact from previous successful run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
 
-    - name: Run simulation
-      shell: bash
-      run: |
-        set -euo pipefail
+          RUN_ID=$(gh run list \
+            --workflow "python-package-conda.yml" \
+            --status success \
+            --limit 20 \
+            --json databaseId \
+            --jq '.[0].databaseId')
 
-        mkdir -p outputs
-        conda run -n base python scripts/iro2_slab_setup.py --batch-nearby-k 8 --center-o-index 20 --outputs outputs
+          if [ -z "${RUN_ID}" ]; then
+            echo "ERROR: No successful prior run found."
+            exit 1
+          fi
 
-        mkdir -p outputs/results
+          gh run download "${RUN_ID}" --name "irO2-simulation-outputs" --dir .
 
-        # Find all prepared structures from setup (works for batch layout)
-        shopt -s globstar nullglob
-        ready_trajs=(outputs/**/structures/*_ready.traj)
+          echo "Downloaded outputs:"
+          find outputs -maxdepth 4 -type f | head -n 200 || true
 
-        echo "Found ${#ready_trajs[@]} ready structure(s)"
-        if [ "${#ready_trajs[@]}" -eq 0 ]; then
-          echo "ERROR: No *_ready.traj files found under outputs/**/structures/"
-          find outputs -maxdepth 6 -type f || true
-          exit 1
-        fi
+      - name: Build ising_dataset.json from downloaded outputs
+        run: |
+          set -euo pipefail
+          conda run -n base python scripts/build_ising_dataset_from_outputs.py \
+            --outputs_dir outputs \
+            --out outputs/ising_dataset.json
+          echo "Preview dataset:"
+          cat outputs/ising_dataset.json | head -n 80 || true
 
-        # Run optimization once per structure
-        for traj in "${ready_trajs[@]}"; do
-          echo "Optimizing: ${traj}"
-          conda run -n base python scripts/optimization_iro2_test.py "${traj}" --output outputs/results
-        done
+      - name: Run Ising Hamiltonian fit
+        run: |
+          set -euo pipefail
+          mkdir -p fit_outputs
+          conda run -n base python scripts/fit_ising_shells.py \
+            --dataset outputs/ising_dataset.json \
+            --out fit_outputs/ising_fit_out.json \
+            --shells 3.2,4.8,6.5 \
+            --fmax_filter 0.06
 
-        # Analyze ALL results (updated script will avoid overwriting)
-        conda run -n base python scripts/optimization_iro2_3.py --outputs outputs
+      - name: Upload Ising fit outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ising-fit-outputs
+          path: fit_outputs/
 
-        ls -R outputs || true
+  simulate-heavy:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
 
+    steps:
+      - uses: actions/checkout@v4
 
-    - name: Debug list outputs
-      run: |
-        echo "PWD=$(pwd)"
-        ls -la
-        echo "outputs dir:"
-        ls -la outputs || true
-        echo "find outputs:"
-        find outputs -maxdepth 3 -type f || true
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          environment-file: environment.yml
+          activate-environment: base
+          auto-activate-base: true
 
-    - name: Upload simulation outputs
-      uses: actions/upload-artifact@v4
-      with:
-        name: irO2-simulation-outputs
-        path: outputs/
+      - name: Run slab setup + optimizations (manual)
+        run: |
+          set -euo pipefail
+          mkdir -p outputs
+          conda run -n base python scripts/iro2_slab_setup.py --batch-nearby-k 8 --center-o-index 20 --outputs outputs
+          conda run -n base python scripts/optimization_iro2_test.py outputs/structures/slab_H_o20_ready.traj --output outputs/results
+          conda run -n base python scripts/optimization_iro2_3.py --outputs outputs
+          find outputs -maxdepth 4 -type f | head -n 200 || true
+
+      - name: Upload simulation outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: irO2-simulation-outputs
+          path: outputs/
