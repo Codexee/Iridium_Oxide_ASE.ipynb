@@ -61,16 +61,32 @@ jobs:
           echo "After download, workspace contains:"
           ls -la
           echo "Outputs tree:"
-          find outputs -maxdepth 3 -type f | head -n 200
+          echo "Repo tree (artifact contents):"
+          find . -maxdepth 3 -type f | head -n 200
 
-
-      - name: Build ising_dataset.json from downloaded outputs
+      - name: Verify artifact contains results JSONs
         shell: bash -l {0}
         run: |
           set -euo pipefail
+          echo "Looking for result + metadata JSONs:"
+          find . -path "*results*" -name "*_results.json" | head -n 50
+          find . -path "*results*" -name "metadata_*.json" | head -n 50
+
+
+      - name: Build ising_dataset.json from downloaded artifact contents
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+
+           # The artifact unpacks into repo root (e.g., batch_centerO20/, results/), not outputs/
+          mkdir -p outputs
+
           python scripts/build_ising_dataset_from_outputs.py \
-           --outputs_dir outputs \
-           --out outputs/ising_dataset.json
+            --outputs_dir . \
+            --out outputs/ising_dataset.json
+
+          echo "Preview dataset:"
+          head -n 80 outputs/ising_dataset.json || true
 
 
       - name: Run Ising Hamiltonian fit
