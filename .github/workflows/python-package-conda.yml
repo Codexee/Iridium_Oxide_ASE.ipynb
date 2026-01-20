@@ -48,12 +48,12 @@ jobs:
           find outputs -maxdepth 4 -type f | head -n 200 || true
 
       - name: Build ising_dataset.json from downloaded outputs
-       shell: bash -l {0}
-       run: |
-         set -euo pipefail
-         python scripts/build_ising_dataset_from_outputs.py \
-          --outputs_dir outputs \
-          --out outputs/ising_dataset.json
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+          python scripts/build_ising_dataset_from_outputs.py \
+           --outputs_dir outputs \
+           --out outputs/ising_dataset.json
 
 
       - name: Run Ising Hamiltonian fit
