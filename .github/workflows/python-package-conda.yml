@@ -21,8 +21,8 @@ jobs:
         with:
           auto-update-conda: true
           environment-file: environment.yml
-          activate-environment: base
-          auto-activate-base: true
+          activate-environment: iro2
+          auto-activate-base: false
 
       - name: Download latest simulation outputs artifact from previous successful run
         env:
@@ -48,23 +48,25 @@ jobs:
           find outputs -maxdepth 4 -type f | head -n 200 || true
 
       - name: Build ising_dataset.json from downloaded outputs
-        run: |
-          set -euo pipefail
-          conda run -n base python scripts/build_ising_dataset_from_outputs.py \
-            --outputs_dir outputs \
-            --out outputs/ising_dataset.json
-          echo "Preview dataset:"
-          cat outputs/ising_dataset.json | head -n 80 || true
+       shell: bash -l {0}
+       run: |
+         set -euo pipefail
+         python scripts/build_ising_dataset_from_outputs.py \
+          --outputs_dir outputs \
+          --out outputs/ising_dataset.json
+
 
       - name: Run Ising Hamiltonian fit
+        shell: bash -l {0}
         run: |
           set -euo pipefail
           mkdir -p fit_outputs
-          conda run -n base python scripts/fit_ising_shells.py \
-            --dataset outputs/ising_dataset.json \
-            --out fit_outputs/ising_fit_out.json \
-            --shells 3.2,4.8,6.5 \
-            --fmax_filter 0.06
+          python scripts/fit_ising_shells.py \
+          --dataset outputs/ising_dataset.json \
+          --out fit_outputs/ising_fit_out.json \
+          --shells 3.2,4.8,6.5 \
+          --fmax_filter 0.06
+
 
       - name: Upload Ising fit outputs
         uses: actions/upload-artifact@v4
