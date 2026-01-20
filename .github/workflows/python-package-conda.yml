@@ -2,6 +2,9 @@ name: IrO2 CI
 
 on:
   push:
+    paths:
+      - "scripts/iro2_pair_setup.py"
+      - ".github/workflows/python-package-conda.yml"
   workflow_dispatch:
 
 permissions:
@@ -9,7 +12,7 @@ permissions:
   actions: read
 
 jobs:
-  fit-ising:
+  generate-pairs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
 
@@ -24,91 +27,24 @@ jobs:
           activate-environment: iro2
           auto-activate-base: false
 
-      - name: Download latest simulation outputs artifact from previous run
-        env:
-           GH_TOKEN: ${{ github.token }}
+      - name: Run pair generator
         shell: bash -l {0}
         run: |
           set -euo pipefail
-
-          ART="irO2-simulation-outputs"
-
-          # List recent successful runs and find the first one that contains the artifact
-          RUN_IDS=$(gh run list \
-            --workflow "python-package-conda.yml" \
-            --status success \
-            --limit 50 \
-            --json databaseId \
-            --jq '.[].databaseId')
-
-          FOUND=""
-          for RID in $RUN_IDS; do
-            if gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RID}/artifacts" --jq '.artifacts[].name' | grep -qx "$ART"; then
-              FOUND="$RID"
-              break
-            fi
-          done
-
-          if [ -z "$FOUND" ]; then
-            echo "ERROR: No previous successful run contains artifact '$ART'."
-            echo "Trigger the workflow manually (Actions → Run workflow) to generate it once."
-            exit 1
-          fi
-
-          echo "Found artifact '$ART' in run $FOUND. Downloading..."
-          gh run download "$FOUND" --name "$ART" --dir .
-
-          echo "After download, workspace contains:"
-          ls -la
-          echo "Outputs tree:"
-          echo "Repo tree (artifact contents):"
-          find . -maxdepth 3 -type f | head -n 200
-
-      - name: Verify artifact contains results JSONs
-        shell: bash -l {0}
-        run: |
-          set -euo pipefail
-          echo "Looking for result + metadata JSONs:"
-          find . -path "*results*" -name "*_results.json" | head -n 50
-          find . -path "*results*" -name "metadata_*.json" | head -n 50
-
-
-      - name: Build ising_dataset.json from downloaded artifact contents
-        shell: bash -l {0}
-        run: |
-          set -euo pipefail
-
-           # The artifact unpacks into repo root (e.g., batch_centerO20/, results/), not outputs/
           mkdir -p outputs
+          python scripts/iro2_pair_setup.py \
+            --input inputs/slab_clean_2x2.in \
+            --outputs outputs \
+            --center-o-index 20
 
-          python scripts/build_ising_dataset_from_outputs.py \
-            --outputs_dir . \
-            --out outputs/ising_dataset.json
-
-          echo "Preview dataset:"
-          head -n 80 outputs/ising_dataset.json || true
-
-
-      - name: Run Ising Hamiltonian fit
-        shell: bash -l {0}
-        run: |
-          set -euo pipefail
-          mkdir -p fit_outputs
-          python scripts/fit_ising_shells.py \
-          --dataset outputs/ising_dataset.json \
-          --out fit_outputs/ising_fit_out.json \
-          --shells 3.2,4.8,6.5 \
-          --fmax_filter 0.06
-
-
-      - name: Upload Ising fit outputs
+      - name: Upload generated structures + metadata
         uses: actions/upload-artifact@v4
         with:
-          name: ising-fit-outputs
-          path: fit_outputs/
+          name: pair-generator-outputs
+          path: outputs/
 
   simulate-heavy:
-    if: github.event_name == 'workflow_dispatch'
+    if: false
     runs-on: ubuntu-latest
 
     steps:
