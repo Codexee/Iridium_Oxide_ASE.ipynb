@@ -6,6 +6,41 @@ import json
 from pathlib import Path
 from typing import Dict, Any, List, Tuple
 
+def resolve_path(p: str, root: Path) -> str:
+    """
+    Make paths robust to artifact unpack location.
+    - If p exists as-is, return it.
+    - If p starts with 'outputs/', try stripping it.
+    - Otherwise search for the filename under root.
+    """
+    if not p:
+        return p
+
+    p_path = Path(p)
+    if p_path.exists():
+        return str(p_path)
+
+    # Common case: results JSON stored paths under outputs/..., but artifact unpacked into repo root
+    if p.startswith("outputs/"):
+        stripped = Path(p[len("outputs/"):])
+        if stripped.exists():
+            return str(stripped)
+
+    # Try relative to root explicitly
+    rel = root / p
+    if rel.exists():
+        return str(rel)
+
+    # Last resort: search by filename
+    fname = p_path.name
+    hits = list(root.glob(f"**/{fname}"))
+    if hits:
+        # Prefer the shortest path (often the closest match)
+        hits_sorted = sorted(hits, key=lambda x: len(str(x)))
+        return str(hits_sorted[0])
+
+    return p  # leave as-is; downstream will error with a clear missing file
+
 
 def load_json(p: Path) -> Dict[str, Any]:
     return json.loads(p.read_text())
@@ -111,7 +146,9 @@ def main(outputs_dir: str, out_path: str):
         fmax = float(r.get("fmax_final", 0.0))
 
         if not ref_structure:
-            ref_structure = pick_ref_structure(r)
+            raw_ref = pick_ref_structure(r)
+            ref_structure = resolve_path(raw_ref, outdir)
+
 
         samples.append(
             {
