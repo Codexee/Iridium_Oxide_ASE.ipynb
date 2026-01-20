@@ -26,7 +26,7 @@ jobs:
 
       - name: Download latest simulation outputs artifact from previous run
         env:
-        GH_TOKEN: ${{ github.token }}
+           GH_TOKEN: ${{ github.token }}
         shell: bash -l {0}
         run: |
           set -euo pipefail
