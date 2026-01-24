@@ -1,34 +1,93 @@
-name: Python Package using Conda
+name: IrO2 CI (states + manual optimize)
 
-on: [push]
+on:
+  push:
+    paths:
+      - "scripts/generate_states.py"
+      - "scripts/run_state_optimizations.py"
+      - "scripts/potential_window.py"
+      - "inputs/state_set.json"
+      - "inputs/*.in"
+      - ".github/workflows/python-package-conda.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  build-linux:
+  generate-states:
     runs-on: ubuntu-latest
-    strategy:
-      max-parallel: 5
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python 3.10
-      uses: actions/setup-python@v3
-      with:
-        python-version: '3.10'
-    - name: Add conda to system path
-      run: |
-        # $CONDA is an environment variable pointing to the root of the miniconda directory
-        echo $CONDA/bin >> $GITHUB_PATH
-    - name: Install dependencies
-      run: |
-        conda env update --file environment.yml --name base
-    - name: Lint with flake8
-      run: |
-        conda install flake8
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Test with pytest
-      run: |
-        conda install pytest
-        pytest -q -m "not slow"
+      - uses: actions/checkout@v4
+
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          environment-file: environment.yml
+          activate-environment: iro2
+          auto-activate-base: false
+
+      - name: Generate state structures
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+          rm -rf outputs || true
+          mkdir -p outputs
+          python scripts/generate_states.py --state_set inputs/state_set.json --outputs outputs
+          echo "Generated:"
+          find outputs/states -maxdepth 5 -type f | head -n 200
+
+      - name: Upload generated states
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-states
+          path: outputs/states/
+
+  optimize-and-analyze:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    needs: generate-states
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          environment-file: environment.yml
+          activate-environment: iro2
+          auto-activate-base: false
+
+      - name: Download generated states artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: generated-states
+          path: outputs/states/
+
+      - name: Run optimizations in parallel (manual only)
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+          # Tune this. Start with 2 or 4; higher may OOM.
+          python scripts/run_state_optimizations.py --outputs outputs --jobs 4
+
+      - name: Compute potential window proxy
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+          python scripts/potential_window.py \
+            --state_set inputs/state_set.json \
+            --outputs outputs \
+            --out outputs/potential_window.json
+          head -n 80 outputs/potential_window.json || true
+
+      - name: Upload optimized states + analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: optimized-states-and-window
+          path: |
+            outputs/states/
+            outputs/potential_window.json
