@@ -5,10 +5,12 @@ on:
     paths:
       - "scripts/generate_states.py"
       - "scripts/run_state_optimizations.py"
+      - "scripts/optimization_iro2_test.py"
       - "scripts/potential_window.py"
       - "inputs/state_set.json"
       - "inputs/*.in"
       - ".github/workflows/python-package-conda.yml"
+      - "environment.yml"
   workflow_dispatch:
 
 permissions:
@@ -17,7 +19,6 @@ permissions:
 jobs:
   generate-states:
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -26,8 +27,10 @@ jobs:
         with:
           auto-update-conda: true
           environment-file: environment.yml
-          activate-environment: iro2
-          auto-activate-base: false
+          # New flag (auto-activate-base is deprecated)
+          auto-activate: false
+          # If installer doesn't default to base, force it explicitly
+          activate-environment: base
 
       - name: Generate state structures
         shell: bash -l {0}
@@ -35,8 +38,8 @@ jobs:
           set -euo pipefail
           rm -rf outputs || true
           mkdir -p outputs
-          python scripts/generate_states.py --state_set inputs/state_set.json --outputs outputs
-          echo "Generated:"
+          conda run -n base python -u scripts/generate_states.py --state_set inputs/state_set.json --outputs outputs
+          echo "Generated files:"
           find outputs/states -maxdepth 5 -type f | head -n 200
 
       - name: Upload generated states
@@ -58,8 +61,8 @@ jobs:
         with:
           auto-update-conda: true
           environment-file: environment.yml
-          activate-environment: iro2
-          auto-activate-base: false
+          auto-activate: false
+          activate-environment: base
 
       - name: Download generated states artifact
         uses: actions/download-artifact@v4
@@ -67,24 +70,25 @@ jobs:
           name: generated-states
           path: outputs/states/
 
-      - name: Run optimizations in parallel (manual only)
+      - name: Run optimizations sequentially (manual only)
         shell: bash -l {0}
         run: |
           set -euo pipefail
-          # Tune this. Start with 2 or 4; higher may OOM.
-          python scripts/run_state_optimizations.py --outputs outputs --jobs 4
+          # Run sequentially for reliability; exclude hydrated on first pass if desired
+          conda run -n iro2 python -u scripts/run_state_optimizations.py --outputs outputs --exclude hydrated
 
       - name: Compute potential window proxy
         shell: bash -l {0}
         run: |
           set -euo pipefail
-          python scripts/potential_window.py \
+          conda run -n iro2 python -u scripts/potential_window.py \
             --state_set inputs/state_set.json \
             --outputs outputs \
             --out outputs/potential_window.json
           head -n 80 outputs/potential_window.json || true
 
-      - name: Upload optimized states + analysis
+      - name: Upload outputs even if something fails
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: optimized-states-and-window
