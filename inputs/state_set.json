@@ -1,0 +1,40 @@
+{
+  "reference": {
+    "slab_qe_input": "inputs/slab_clean_2x2.in",
+    "center_o_index": 20
+  },
+  "candidate_sites": {
+    "o_indices": [21, 22, 23, 44, 46, 47, 69, 71]
+  },
+  "settings": {
+    "oh_distance_A": 1.0,
+    "surface_threshold_A": 1.5,
+    "z_freeze_A": 20.0
+  },
+  "states": [
+    { "name": "clean", "type": "clean_slab" },
+
+    {
+      "name": "H_star",
+      "type": "single_adsorbate",
+      "adsorbate": "H",
+      "sites": [21, 22, 23, 44, 46, 47, 69, 71]
+    },
+
+    {
+      "name": "hydrated_H_star_test",
+      "type": "hydrated_single_adsorbate",
+      "adsorbate": "H",
+      "site": 21,
+      "water": true,
+      "water_mode": "near_site"
+    }
+  ],
+
+  "thermo": {
+    "E_H2_eV": null,
+    "delta_ZPE_minus_TdS_eV": 0.0,
+    "pH": 0
+  }
+}
+

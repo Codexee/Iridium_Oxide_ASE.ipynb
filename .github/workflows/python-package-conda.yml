@@ -1,19 +1,21 @@
-name: IrO2 CI
+name: IrO2 CI (state generation)
 
 on:
   push:
     paths:
-      - "scripts/iro2_pair_setup.py"
+      - "scripts/generate_states.py"
+      - "scripts/run_state_optimizations.py"
+      - "scripts/potential_window.py"
+      - "inputs/state_set.json"
       - ".github/workflows/python-package-conda.yml"
+      - "inputs/slab_clean_2x2.in"
   workflow_dispatch:
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
-  generate-pairs:
-    if: github.event_name == 'push'
+  generate-states:
     runs-on: ubuntu-latest
 
     steps:
@@ -27,48 +29,18 @@ jobs:
           activate-environment: iro2
           auto-activate-base: false
 
-      - name: Run pair generator
+      - name: Generate state structures
         shell: bash -l {0}
         run: |
           set -euo pipefail
           mkdir -p outputs
-          python scripts/iro2_pair_setup.py \
-            --input inputs/slab_clean_2x2.in \
-            --outputs outputs \
-            --center-o-index 20
+          python scripts/generate_states.py --state_set inputs/state_set.json --outputs outputs
+          echo "Generated structures:"
+          find outputs/states -maxdepth 4 -type f | head -n 200
 
-      - name: Upload generated structures + metadata
+      - name: Upload generated states
         uses: actions/upload-artifact@v4
         with:
-          name: pair-generator-outputs
-          path: outputs/
+          name: generated-states
+          path: outputs/states/
 
-  simulate-heavy:
-    if: false
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Miniconda
-        uses: conda-incubator/setup-miniconda@v3
-        with:
-          auto-update-conda: true
-          environment-file: environment.yml
-          activate-environment: base
-          auto-activate-base: true
-
-      - name: Run slab setup + optimizations (manual)
-        run: |
-          set -euo pipefail
-          mkdir -p outputs
-          conda run -n base python scripts/iro2_slab_setup.py --batch-nearby-k 8 --center-o-index 20 --outputs outputs
-          conda run -n base python scripts/optimization_iro2_test.py outputs/structures/slab_H_o20_ready.traj --output outputs/results
-          conda run -n base python scripts/optimization_iro2_3.py --outputs outputs
-          find outputs -maxdepth 4 -type f | head -n 200 || true
-
-      - name: Upload simulation outputs
-        uses: actions/upload-artifact@v4
-        with:
-          name: irO2-simulation-outputs
-          path: outputs/
