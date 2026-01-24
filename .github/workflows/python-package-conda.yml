@@ -1,4 +1,4 @@
-name: IrO2 CI (state generation)
+name: IrO2 CI (states + manual optimize)
 
 on:
   push:
@@ -7,8 +7,8 @@ on:
       - "scripts/run_state_optimizations.py"
       - "scripts/potential_window.py"
       - "inputs/state_set.json"
+      - "inputs/*.in"
       - ".github/workflows/python-package-conda.yml"
-      - "inputs/slab_clean_2x2.in"
   workflow_dispatch:
 
 permissions:
@@ -33,10 +33,11 @@ jobs:
         shell: bash -l {0}
         run: |
           set -euo pipefail
+          rm -rf outputs || true
           mkdir -p outputs
           python scripts/generate_states.py --state_set inputs/state_set.json --outputs outputs
-          echo "Generated structures:"
-          find outputs/states -maxdepth 4 -type f | head -n 200
+          echo "Generated:"
+          find outputs/states -maxdepth 5 -type f | head -n 200
 
       - name: Upload generated states
         uses: actions/upload-artifact@v4
@@ -44,3 +45,49 @@ jobs:
           name: generated-states
           path: outputs/states/
 
+  optimize-and-analyze:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    needs: generate-states
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          environment-file: environment.yml
+          activate-environment: iro2
+          auto-activate-base: false
+
+      - name: Download generated states artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: generated-states
+          path: outputs/states/
+
+      - name: Run optimizations in parallel (manual only)
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+          # Tune this. Start with 2 or 4; higher may OOM.
+          python scripts/run_state_optimizations.py --outputs outputs --jobs 4
+
+      - name: Compute potential window proxy
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+          python scripts/potential_window.py \
+            --state_set inputs/state_set.json \
+            --outputs outputs \
+            --out outputs/potential_window.json
+          head -n 80 outputs/potential_window.json || true
+
+      - name: Upload optimized states + analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: optimized-states-and-window
+          path: |
+            outputs/states/
+            outputs/potential_window.json
