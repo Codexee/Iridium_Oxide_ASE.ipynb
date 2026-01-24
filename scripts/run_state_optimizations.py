@@ -2,45 +2,22 @@
 from __future__ import annotations
 
 import argparse
-import os
 import subprocess
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import List, Tuple
+from typing import List
 
 
-def run_one(optimizer: str, traj: Path, outdir: Path) -> Tuple[str, int, str]:
-    """
-    Run optimizer on one trajectory.
-    Returns (traj_path, return_code, last_output_snippet).
-    """
-    cmd = [sys.executable, optimizer, str(traj), "--output", str(outdir)]
-    p = subprocess.run(cmd, capture_output=True, text=True)
-    # Keep the tail for debugging
-    tail = ""
-    if p.stdout:
-        tail += p.stdout[-2000:]
-    if p.stderr:
-        tail += ("\n" + p.stderr[-2000:])
-    return (str(traj), p.returncode, tail)
-
-
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--outputs", default="outputs", help="Root outputs dir")
+def main() -> None:
+    ap = argparse.ArgumentParser(description="Run xTB optimizations sequentially over generated state .traj files.")
+    ap.add_argument("--outputs", default="outputs", help="Root outputs dir (contains states/**/structures/*.traj)")
+    ap.add_argument("--optimizer", default="scripts/optimization_iro2_test.py", help="Optimizer script path")
+    ap.add_argument("--dry_run", action="store_true", help="Print commands but do not run them")
     ap.add_argument(
-        "--optimizer",
-        default="scripts/optimization_iro2_test.py",
-        help="Optimizer script path",
+        "--exclude",
+        default="",
+        help="Comma-separated substrings to skip (e.g. hydrated). Leave empty to run all.",
     )
-    ap.add_argument(
-        "--jobs",
-        type=int,
-        default=max(1, (os.cpu_count() or 2) // 2),
-        help="Number of parallel optimizations to run (default: half cores).",
-    )
-    ap.add_argument("--dry_run", action="store_true", help="Print commands but do not run")
     args = ap.parse_args()
 
     out_root = Path(args.outputs)
@@ -48,36 +25,38 @@ def main():
     if not trajs:
         raise FileNotFoundError(f"No .traj found under {out_root}/states/**/structures")
 
-    # Prepare jobs
-    jobs = []
-    for traj in trajs:
-        res_dir = traj.parent.parent / "results"
-        res_dir.mkdir(parents=True, exist_ok=True)
-        jobs.append((traj, res_dir))
+    excludes = [s.strip() for s in args.exclude.split(",") if s.strip()]
+    if excludes:
+        trajs = [t for t in trajs if not any(ex in str(t) for ex in excludes)]
 
-    print(f"Found {len(jobs)} structures. Running with --jobs {args.jobs}")
+    if not trajs:
+        raise FileNotFoundError("No .traj left to run after applying --exclude filter.")
 
-    if args.dry_run:
-        for traj, res_dir in jobs:
-            cmd = [sys.executable, args.optimizer, str(traj), "--output", str(res_dir)]
-            print(" ".join(cmd))
-        return
+    print(f"Found {len(trajs)} structures to optimize (sequential).", flush=True)
 
     failures = 0
-    # ThreadPool is fine: work happens in external subprocesses.
-    with ThreadPoolExecutor(max_workers=max(1, args.jobs)) as ex:
-        futs = [ex.submit(run_one, args.optimizer, traj, res_dir) for traj, res_dir in jobs]
-        for fut in as_completed(futs):
-            traj_path, rc, tail = fut.result()
-            if rc != 0:
-                failures += 1
-                print(f"\n[FAIL] {traj_path}\n{tail}\n")
-            else:
-                print(f"[ok] {traj_path}")
+    for idx, traj in enumerate(trajs, start=1):
+        res_dir = traj.parent.parent / "results"
+        res_dir.mkdir(parents=True, exist_ok=True)
+
+        cmd = [sys.executable, args.optimizer, str(traj), "--output", str(res_dir)]
+        print(f"\n[{idx}/{len(trajs)}] START {traj}", flush=True)
+        print(" ".join(cmd), flush=True)
+
+        if args.dry_run:
+            continue
+
+        p = subprocess.run(cmd, text=True)
+        if p.returncode != 0:
+            failures += 1
+            print(f"[{idx}/{len(trajs)}] FAIL {traj} (exit={p.returncode})", flush=True)
+            # Continue so we still get partial results
+        else:
+            print(f"[{idx}/{len(trajs)}] OK   {traj}", flush=True)
 
     if failures:
-        raise SystemExit(f"{failures} optimization(s) failed.")
-    print(f"\nDone. Optimized {len(jobs)} structures.")
+        raise SystemExit(f"{failures} optimization(s) failed. Partial results may still exist.")
+    print("\nAll optimizations completed successfully.", flush=True)
 
 
 if __name__ == "__main__":
