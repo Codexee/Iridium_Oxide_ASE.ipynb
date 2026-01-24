@@ -7,7 +7,7 @@ import json
 import time
 
 def run_optimization(
-    structure_file: str slab_clean_2x2.in,
+    structure_file = "slab_clean_2x2.in",
     fmax: float = 0.05,
     max_steps: int = 200,
     method: str = "GFN2-xTB",
