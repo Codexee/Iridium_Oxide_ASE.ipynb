@@ -22,3 +22,13 @@ build/
 *.cif
 *.log
 *.out
+
+# Local outputs / artifacts
+outputs/
+results/
+test_results/
+*.log
+*.traj
+
+# local helper scripts
+run_batch_singleH.sh
