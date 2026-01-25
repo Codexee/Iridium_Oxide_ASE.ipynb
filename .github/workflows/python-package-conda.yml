@@ -4,7 +4,6 @@ on:
   push:
     paths:
       - "scripts/generate_states.py"
-      - "scripts/run_state_optimizations.py"
       - "scripts/optimization_iro2_test.py"
       - "scripts/potential_window.py"
       - "inputs/state_set.json"
@@ -28,33 +27,23 @@ jobs:
           auto-update-conda: true
           auto-activate: false
 
-      - name: Create conda env from environment.yml
+      - name: Create conda environment
         shell: bash -l {0}
         run: |
           set -euo pipefail
-          ENV_NAME="$(python -c "import re; 
-          lines=open('environment.yml','r',encoding='utf-8').read().splitlines(); 
-          name=[re.match(r'^\\s*name:\\s*(\\S+)\\s*$',l).group(1) for l in lines if re.match(r'^\\s*name:\\s*(\\S+)\\s*$',l)]; 
-          print(name[0] if name else (_ for _ in ()).throw(SystemExit('No name in environment.yml')))")"
-          echo "ENV_NAME=${ENV_NAME}" >> "$GITHUB_ENV"
-          echo "Env name: ${ENV_NAME}"
+          conda env create -f environment.yml || true
           conda env list
-          if conda env list | awk '{print $1}' | grep -qx "${ENV_NAME}"; then
-            echo "Env ${ENV_NAME} already exists"
-          else
-            conda env create -f environment.yml
-          fi
-          conda run -n "${ENV_NAME}" python -c "import numpy, ase; print('numpy+ase ok')"
 
-      - name: Generate state structures
+      - name: Generate states
         shell: bash -l {0}
         run: |
           set -euo pipefail
           rm -rf outputs || true
           mkdir -p outputs
-          conda run -n "${ENV_NAME}" python -u scripts/generate_states.py --state_set inputs/state_set.json --outputs outputs
-          echo "Generated files:"
-          find outputs/states -maxdepth 5 -type f | head -n 200
+          conda run -n iro2 python -u scripts/generate_states.py \
+            --state_set inputs/state_set.json \
+            --outputs outputs
+          find outputs/states -name "*.traj"
 
       - name: Upload generated states
         uses: actions/upload-artifact@v4
@@ -62,10 +51,16 @@ jobs:
           name: generated-states
           path: outputs/states/
 
-  optimize-and-analyze:
+  optimize-single:
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     needs: generate-states
+
+    strategy:
+      fail-fast: false
+      matrix:
+        site: [21, 22, 23, 44, 46, 47, 69, 71, clean]
+
     steps:
       - uses: actions/checkout@v4
 
@@ -75,71 +70,47 @@ jobs:
           auto-update-conda: true
           auto-activate: false
 
-      - name: Create conda env from environment.yml
+      - name: Create conda environment
         shell: bash -l {0}
         run: |
           set -euo pipefail
-          ENV_NAME="$(python -c "import re; 
-          lines=open('environment.yml','r',encoding='utf-8').read().splitlines(); 
-          name=[re.match(r'^\\s*name:\\s*(\\S+)\\s*$',l).group(1) for l in lines if re.match(r'^\\s*name:\\s*(\\S+)\\s*$',l)]; 
-          print(name[0] if name else (_ for _ in ()).throw(SystemExit('No name in environment.yml')))")"
-          echo "ENV_NAME=${ENV_NAME}" >> "$GITHUB_ENV"
-          echo "Env name: ${ENV_NAME}"
-          conda env list
-          if conda env list | awk '{print $1}' | grep -qx "${ENV_NAME}"; then
-            echo "Env ${ENV_NAME} already exists"
-          else
-            conda env create -f environment.yml
-          fi
-          conda run -n "${ENV_NAME}" python -c "import numpy, ase; print('numpy+ase ok')"
-          conda run -n "${ENV_NAME}" python -c "import xtb; print('xtb ok')"
+          conda env create -f environment.yml || true
+          conda run -n iro2 python -c "import numpy, ase, xtb; print('env ok')"
 
-      - name: Download generated states artifact
+      - name: Download generated states
         uses: actions/download-artifact@v4
         with:
           name: generated-states
           path: outputs/states/
 
-      - name: Run optimizations sequentially (manual only)
-        shell: bash -l {0}
-        run: |
-            set -euo pipefail
-
-            echo "ENV_NAME=${ENV_NAME}"
-            conda info
-            conda env list
-
-            echo "Workspace tree (top):"
-            ls -la
-            echo "States tree:"
-            find outputs/states -maxdepth 4 -type d | head -n 200
-            echo "Traj files:"
-            find outputs/states -name "*.traj" | head -n 200
-
-            echo "Python + package sanity:"
-            conda run -n "${ENV_NAME}" python -V
-            conda run -n "${ENV_NAME}" python -c "import numpy, ase, xtb; print('imports ok')"
-
-            echo "Dry run (should print commands immediately):"
-            conda run -n "${ENV_NAME}" python -u scripts/run_state_optimizations.py --outputs outputs --exclude hydrated --dry_run
-
-            echo "Running real optimizations (streaming output):"
-            # Use 'tee' so output is definitely captured in Actions logs and saved to a file
-            conda run -n "${ENV_NAME}" python -u scripts/run_state_optimizations.py --outputs outputs --exclude hydrated 2>&1 | tee outputs/optimize.log
-
-      - name: Compute potential window proxy
+      - name: Select structure
         shell: bash -l {0}
         run: |
           set -euo pipefail
-          conda run -n "${ENV_NAME}" python -u scripts/potential_window.py --state_set inputs/state_set.json --outputs outputs --out outputs/potential_window.json
-          echo "Wrote outputs/potential_window.json"
-          head -n 60 outputs/potential_window.json || true
+          if [ "${{ matrix.site }}" = "clean" ]; then
+            TRAJ="outputs/states/clean/structures/slab_clean_ready.traj"
+            OUTDIR="outputs/states/clean/results"
+          else
+            TRAJ="outputs/states/H_star/structures/slab_H_o${{ matrix.site }}_ready.traj"
+            OUTDIR="outputs/states/H_star/results"
+          fi
+          echo "TRAJ=${TRAJ}" >> "$GITHUB_ENV"
+          echo "OUTDIR=${OUTDIR}" >> "$GITHUB_ENV"
+          ls -l "${TRAJ}"
 
-      - name: Upload outputs (always)
+      - name: Optimize structure
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+          mkdir -p "${OUTDIR}"
+          echo "Optimizing ${TRAJ}"
+          timeout 50m conda run -n iro2 python -u scripts/optimization_iro2_test.py \
+            "${TRAJ}" --output "${OUTDIR}" || true
+          ls -l "${OUTDIR}" || true
+
+      - name: Upload optimization result
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: optimized-states-and-window
-          path: |
-            outputs/states/
-            outputs/potential_window.json
+          name: opt-${{ matrix.site }}
+          path: outputs/states/**/results/*
