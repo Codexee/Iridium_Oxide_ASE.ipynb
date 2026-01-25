@@ -25,24 +25,50 @@ jobs:
       - name: Set up Miniconda
         uses: conda-incubator/setup-miniconda@v3
         with:
-          auto-update-conda: true
-          environment-file: environment.yml
-          # New flag (auto-activate-base is deprecated)
-          auto-activate: false
-          # If installer doesn't default to base, force it explicitly
-          activate-environment: base
+            auto-update-conda: true
+            auto-activate: false
+
+      - name: Create conda env from environment.yml
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+          ENV_NAME="$(python - <<'PY'
+          import re
+          txt=open('environment.yml','r',encoding='utf-8').read().splitlines()
+          for line in txt:
+            m=re.match(r'^\s*name:\s*(\S+)\s*$', line)
+            if m:
+              print(m.group(1))
+              break
+          else:
+            raise SystemExit("No 'name:' found in environment.yml")
+          PY
+          )"
+          echo "Env name: ${ENV_NAME}"
+          conda env list
+          if conda env list | awk '{print $1}' | grep -qx "${ENV_NAME}"; then
+            echo "Env ${ENV_NAME} already exists"
+          else
+            conda env create -f environment.yml
+          fi
+            conda run -n "${ENV_NAME}" python -c "import numpy, ase; print('numpy+ase ok')"
 
       - name: Generate state structures
         shell: bash -l {0}
         run: |
-            set -euo pipefail
-            rm -rf outputs || true
-            mkdir -p outputs
-            conda run -n iro2 python -u scripts/generate_states.py \
-              --state_set inputs/state_set.json \
-              --outputs outputs
-            echo "Generated files:"
-            find outputs/states -maxdepth 5 -type f | head -n 200
+              set -euo pipefail
+              ENV_NAME="$(python - <<'PY'
+              import re
+              for line in open('environment.yml','r',encoding='utf-8'):
+                m=re.match(r'^\s*name:\s*(\S+)\s*$', line)
+                  if m:
+                    print(m.group(1)); break
+                PY
+                )"
+                  rm -rf outputs || true
+                  mkdir -p outputs
+                  conda run -n "${ENV_NAME}" python -u scripts/generate_states.py --state_set inputs/state_set.json --outputs outputs
+                  find outputs/states -maxdepth 5 -type f | head -n 200
 
       - name: Upload generated states
         uses: actions/upload-artifact@v4
@@ -58,13 +84,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Miniconda
-        uses: conda-incubator/setup-miniconda@v3
-        with:
-          auto-update-conda: true
-          environment-file: environment.yml
-          auto-activate: false
-          activate-environment: base
+      - name: Create conda env from environment.yml
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+          ENV_NAME="$(python - <<'PY'
+          import re
+          txt=open('environment.yml','r',encoding='utf-8').read().splitlines()
+          for line in txt:
+            m=re.match(r'^\s*name:\s*(\S+)\s*$', line)
+            if m:
+              print(m.group(1))
+              break
+          else:
+            raise SystemExit("No 'name:' found in environment.yml")
+          PY
+          )"
+          echo "Env name: ${ENV_NAME}"
+          conda env list
+          if conda env list | awk '{print $1}' | grep -qx "${ENV_NAME}"; then
+            echo "Env ${ENV_NAME} already exists"
+          else
+            conda env create -f environment.yml
+          fi
+            conda run -n "${ENV_NAME}" python -c "import numpy, ase; print('numpy+ase ok')"
 
       - name: Download generated states artifact
         uses: actions/download-artifact@v4
@@ -75,25 +118,58 @@ jobs:
       - name: Run optimizations sequentially (manual only)
         shell: bash -l {0}
         run: |
-          set -euo pipefail
-          # Run sequentially for reliability; exclude hydrated on first pass if desired
-          conda run -n iro2 python -u scripts/run_state_optimizations.py --outputs outputs --exclude hydrated
+              set -euo pipefail
+              ENV_NAME="$(python - <<'PY'
+              import re
+              for line in open('environment.yml','r',encoding='utf-8'):
+                  m=re.match(r'^\s*name:\s*(\S+)\s*$', line)
+                  if m:
+                    print(m.group(1)); break
+              PY
+              )"
+              conda run -n "${ENV_NAME}" python -u scripts/run_state_optimizations.py --outputs outputs --exclude hydrated
+      - name: Resolve env name and create conda env
+        shell: bash -l {0}
+        run: |
+              set -euo pipefail
+              ENV_NAME="$(python - <<'PY'
+              import re
+              for line in open('environment.yml','r',encoding='utf-8'):
+                m=re.match(r'^\s*name:\s*(\S+)\s*$', line)
+                if m:
+                  print(m.group(1)); break
+                else:
+                  raise SystemExit("No 'name:' found in environment.yml")
+              PY
+              )"
+                echo "ENV_NAME=${ENV_NAME}" | tee -a "$GITHUB_ENV"
+                conda env list
+                if conda env list | awk '{print $1}' | grep -qx "${ENV_NAME}"; then
+                  echo "Env ${ENV_NAME} already exists"
+                else
+                  conda env create -f environment.yml
+                fi
+                conda run -n "${ENV_NAME}" python -c "import numpy, ase; print('numpy+ase ok')"
+
 
       - name: Compute potential window proxy
         shell: bash -l {0}
         run: |
-          set -euo pipefail
-          conda run -n iro2 python -u scripts/potential_window.py \
-            --state_set inputs/state_set.json \
-            --outputs outputs \
-            --out outputs/potential_window.json
-          head -n 80 outputs/potential_window.json || true
+              set -euo pipefail
+              conda run -n "${ENV_NAME}" python -u scripts/potential_window.py \
+                --state_set inputs/state_set.json \
+                --outputs outputs \
+                --out outputs/potential_window.json
+              echo "Wrote outputs/potential_window.json"
+              head -n 60 outputs/potential_window.json || true
 
-      - name: Upload outputs even if something fails
+
+      - name: Upload outputs (always)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: optimized-states-and-window
-          path: |
-            outputs/states/
-            outputs/potential_window.json
+            name: optimized-states-and-window
+            path: |
+                  outputs/states/
+                  outputs/potential_window.json
+
