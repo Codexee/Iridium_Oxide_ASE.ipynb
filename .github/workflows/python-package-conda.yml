@@ -103,8 +103,29 @@ jobs:
       - name: Run optimizations sequentially (manual only)
         shell: bash -l {0}
         run: |
-          set -euo pipefail
-          conda run -n "${ENV_NAME}" python -u scripts/run_state_optimizations.py --outputs outputs --exclude hydrated
+            set -euo pipefail
+
+            echo "ENV_NAME=${ENV_NAME}"
+            conda info
+            conda env list
+
+            echo "Workspace tree (top):"
+            ls -la
+            echo "States tree:"
+            find outputs/states -maxdepth 4 -type d | head -n 200
+            echo "Traj files:"
+            find outputs/states -name "*.traj" | head -n 200
+
+            echo "Python + package sanity:"
+            conda run -n "${ENV_NAME}" python -V
+            conda run -n "${ENV_NAME}" python -c "import numpy, ase, xtb; print('imports ok')"
+
+            echo "Dry run (should print commands immediately):"
+            conda run -n "${ENV_NAME}" python -u scripts/run_state_optimizations.py --outputs outputs --exclude hydrated --dry_run
+
+            echo "Running real optimizations (streaming output):"
+            # Use 'tee' so output is definitely captured in Actions logs and saved to a file
+            conda run -n "${ENV_NAME}" python -u scripts/run_state_optimizations.py --outputs outputs --exclude hydrated 2>&1 | tee outputs/optimize.log
 
       - name: Compute potential window proxy
         shell: bash -l {0}
