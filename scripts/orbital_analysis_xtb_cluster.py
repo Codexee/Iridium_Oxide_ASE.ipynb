@@ -386,6 +386,8 @@ def main():
                     help="Output directory")
     args = ap.parse_args()
 
+    print(f"Reading cluster geometry from: {cluster_path}")
+
     cluster_path = Path(args.cluster)
     # If a relative path was provided, resolve it relative to repo root (parent of scripts/)
     if not cluster_path.is_absolute():
