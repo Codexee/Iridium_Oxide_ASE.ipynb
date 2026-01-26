@@ -20,6 +20,22 @@ import json
 from pathlib import Path
 import numpy as np
 
+def json_sanitize(obj):
+    """Convert numpy scalars/arrays into plain Python types for JSON."""
+    import numpy as np
+
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, (np.floating,)):
+        return float(obj)
+    if isinstance(obj, (np.ndarray,)):
+        return obj.tolist()
+    if isinstance(obj, dict):
+        return {str(k): json_sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [json_sanitize(x) for x in obj]
+    return obj
+
 def spatial_to_spin_orbital(h1_spatial: np.ndarray, h2_spatial: np.ndarray):
     """
     Expand spatial integrals (n spatial) -> spin-orbital integrals (2n spin).
@@ -110,7 +126,7 @@ def main():
         }
     }
 
-    outpath.write_text(json.dumps(payload, indent=2))
+    outpath.write_text(json.dumps(json_sanitize(payload), indent=2))
     print(f"Wrote: {outpath}")
 
 if __name__ == "__main__":
