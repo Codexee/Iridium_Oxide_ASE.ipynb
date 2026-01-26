@@ -139,13 +139,13 @@ def parse_molden(molden_path: Path) -> MoldenData:
 
     # Locate sections
     def find_section(name: str) -> int:
-    target = f"[{name.lower()}]"
-    for i, line in enumerate(text):
-        s = line.strip().lower()
-        # Accept "[atoms]" and also "[atoms] (angs)" etc.
-        if s.startswith(target):
-            return i
-    return -1
+        target = f"[{name.lower()}]"
+        for i, line in enumerate(text):
+            s = line.strip().lower()
+            # Accept "[atoms]" and also "[atoms] (angs)" etc.
+            if s.startswith(target):
+                return i
+        return -1
 
 
     i_atoms = find_section("Atoms")
