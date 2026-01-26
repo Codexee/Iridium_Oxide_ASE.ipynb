@@ -1,10 +1,6 @@
 name: Orbital analysis (xTB) on extracted cluster
 
 on:
-  push:
-    paths:
-      - "scripts/orbital_analysis_xtb_cluster.py"
-      - ".github/workflows/orbital-analysis.yml"
   workflow_dispatch:
     inputs:
       site:
@@ -12,25 +8,13 @@ on:
         required: true
         default: "o69"
       cluster_workflow_name:
-        description: "Name of the cluster extraction workflow (as shown in Actions UI)"
+        description: "Exact name of the cluster extraction workflow (as shown in Actions UI)"
         required: true
         default: "Cluster extraction"
       cluster_run_id:
         description: "Optional: specific cluster-extraction run ID to download from (leave blank for latest successful)"
         required: false
         default: ""
-      artifact_name_prefix:
-        description: "Artifact name prefix used by cluster extraction workflow"
-        required: true
-        default: "cluster"
-      charge:
-        description: "Cluster total charge (integer)"
-        required: true
-        default: "0"
-      uhf:
-        description: "Unpaired electrons (integer; 0 = closed shell)"
-        required: true
-        default: "0"
       shell_cutoff:
         description: "Neighbor shell cutoff around H* (Å)"
         required: true
@@ -66,7 +50,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install micromamba
+      - name: Install micromamba (xTB + Python deps)
         uses: mamba-org/setup-micromamba@v2
         with:
           micromamba-version: "latest"
@@ -110,38 +94,20 @@ jobs:
           echo "Using latest successful cluster extraction run id: ${RID}"
           echo "run_id=${RID}" >> "$GITHUB_OUTPUT"
 
-      - name: Download cluster artifacts (no name filter)
+      - name: Download ALL cluster artifacts from that run
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           mkdir -p artifacts
-
           RID="${{ steps.resolve.outputs.run_id }}"
-          echo "Downloading ALL artifacts from run id ${RID}"
+
+          echo "Downloading all artifacts from run id: ${RID}"
           gh run download "${RID}" -D artifacts
 
           echo "Downloaded files:"
-          find artifacts -maxdepth 4 -type f -print
-      
-      - name: Validate inputs
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "site='${{ inputs.site }}'"
-          echo "prefix='${{ inputs.artifact_name_prefix }}'"
-
-          if [ -z "${{ inputs.site }}" ]; then
-            echo "ERROR: inputs.site is empty. Set it when dispatching (e.g. o69)."
-            exit 1
-          fi
-
-          if [ -z "${{ inputs.artifact_name_prefix }}" ]; then
-            echo "ERROR: inputs.artifact_name_prefix is empty. Set it (e.g. cluster)."
-            exit 1
-          fi
-
+          find artifacts -maxdepth 5 -type f -print
 
       - name: Locate cluster geometry file
         id: locate
@@ -149,9 +115,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          # Preferred filenames
-          PREFERRED_TRAJ="$(find artifacts -type f -name "o69_cluster.traj" | head -n 1 || true)"
-          PREFERRED_XYZ="$(find artifacts -type f -name "o69_cluster.xyz"  | head -n 1 || true)"
+          SITE="${{ inputs.site }}"
+
+          # Prefer the expected filenames
+          PREFERRED_TRAJ="$(find artifacts -type f -name "${SITE}_cluster.traj" | head -n 1 || true)"
+          PREFERRED_XYZ="$(find artifacts -type f -name "${SITE}_cluster.xyz"  | head -n 1 || true)"
 
           if [ -n "$PREFERRED_TRAJ" ]; then
             echo "cluster_path=$PREFERRED_TRAJ" >> "$GITHUB_OUTPUT"
@@ -165,25 +133,19 @@ jobs:
             exit 0
           fi
 
-          # Fallback: any traj/xyz
-          TRAJ="$(find artifacts -type f -name "*.traj" | head -n 1 || true)"
-          XYZ="$(find artifacts -type f -name "*.xyz"  | head -n 1 || true)"
+          echo "ERROR: Could not find ${SITE}_cluster.traj or ${SITE}_cluster.xyz in downloaded artifacts."
+          echo "Here are available traj/xyz files:"
+          find artifacts -type f \( -name "*.traj" -o -name "*.xyz" \) -print || true
+          exit 1
 
-          if [ -n "$TRAJ" ]; then
-            echo "cluster_path=$TRAJ" >> "$GITHUB_OUTPUT"
-            echo "Using fallback traj: $TRAJ"
-          elif [ -n "$XYZ" ]; then
-            echo "cluster_path=$XYZ" >> "$GITHUB_OUTPUT"
-            echo "Using fallback xyz: $XYZ"
-          else
-            echo "No cluster geometry file found in artifacts."
-            exit 1
-          fi
-          
       - name: Run orbital analysis (${{ matrix.case.name }})
         shell: bash
         run: |
           set -euo pipefail
+
+          echo "Cluster path: ${{ steps.locate.outputs.cluster_path }}"
+          echo "Case: ${{ matrix.case.name }} (charge=${{ matrix.case.charge }}, uhf=${{ matrix.case.uhf }})"
+
           micromamba run -n iro2 python scripts/orbital_analysis_xtb_cluster.py \
             "${{ steps.locate.outputs.cluster_path }}" \
             --site "${{ inputs.site }}" \
@@ -193,6 +155,9 @@ jobs:
             --frontier-window-ev "${{ inputs.frontier_window_ev }}" \
             --topn "${{ inputs.topn }}" \
             --outdir "outputs/orbital_analysis/${{ matrix.case.name }}"
+
+          echo "Analysis outputs:"
+          find "outputs/orbital_analysis/${{ matrix.case.name }}/${{ inputs.site }}" -maxdepth 3 -type f -print
 
       - name: Upload orbital analysis outputs (${{ matrix.case.name }})
         uses: actions/upload-artifact@v4
@@ -205,4 +170,3 @@ jobs:
             outputs/orbital_analysis/${{ matrix.case.name }}/${{ inputs.site }}/xtb_sp/molden.input
             outputs/orbital_analysis/${{ matrix.case.name }}/${{ inputs.site }}/xtb_sp/xtb.out
             outputs/orbital_analysis/${{ matrix.case.name }}/${{ inputs.site }}/xtb_sp/xtb.err
-
