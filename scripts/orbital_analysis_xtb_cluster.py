@@ -387,6 +387,15 @@ def main():
     args = ap.parse_args()
 
     cluster_path = Path(args.cluster)
+    # If a relative path was provided, resolve it relative to repo root (parent of scripts/)
+    if not cluster_path.is_absolute():
+    repo_root = Path(__file__).resolve().parents[1]
+    candidate = (repo_root / cluster_path).resolve()
+    if candidate.exists():
+        cluster_path = candidate
+    if not cluster_path.exists():
+    raise FileNotFoundError(f"Cluster file not found: {cluster_path}")
+        
     outdir = Path(args.outdir) / args.site
     outdir.mkdir(parents=True, exist_ok=True)
 
