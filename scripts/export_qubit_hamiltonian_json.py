@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""
+Export a qubit Hamiltonian JSON from an active-space integral NPZ.
+
+Input: fermionic_active_space.npz containing:
+  - h1: (n,n) spatial one-electron integrals
+  - h2: (n,n,n,n) spatial two-electron integrals (chemist/physicist consistent with ao2mo; we treat as (pq|rs))
+  - ecore: float
+
+Output:
+  qubit_hamiltonian_<mapping>.json with Pauli strings + coeffs
+
+Requires:
+  pip install openfermion
+"""
+
+from __future__ import annotations
+import argparse
+import json
+from pathlib import Path
+import numpy as np
+
+def spatial_to_spin_orbital(h1_spatial: np.ndarray, h2_spatial: np.ndarray):
+    """
+    Expand spatial integrals (n spatial) -> spin-orbital integrals (2n spin).
+    Returns (h1_so, h2_so) where:
+      h1_so: (2n, 2n)
+      h2_so: (2n, 2n, 2n, 2n) in OpenFermion InteractionOperator convention.
+    """
+    n = h1_spatial.shape[0]
+    nso = 2 * n
+    h1 = np.zeros((nso, nso), dtype=float)
+    h2 = np.zeros((nso, nso, nso, nso), dtype=float)
+
+    # helper: spin-orbital index
+    def so(p, spin):  # spin 0=alpha, 1=beta
+        return 2 * p + spin
+
+    # One-electron block-diagonal in spin
+    for p in range(n):
+        for q in range(n):
+            v = h1_spatial[p, q]
+            h1[so(p,0), so(q,0)] = v
+            h1[so(p,1), so(q,1)] = v
+
+    # Two-electron: (pσ,qτ,rσ,sτ) = (pq|rs)
+    # We populate terms where first/third have same spin, second/fourth have same spin.
+    for p in range(n):
+        for q in range(n):
+            for r in range(n):
+                for s in range(n):
+                    v = h2_spatial[p, q, r, s]
+                    for sp in (0,1):
+                        for sq in (0,1):
+                            h2[so(p,sp), so(q,sq), so(r,sp), so(s,sq)] = v
+    return h1, h2
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("npz", help="Path to fermionic_active_space.npz")
+    ap.add_argument("--mapping", choices=["jw", "bk"], default="jw")
+    ap.add_argument("--out", default="", help="Output JSON path (optional)")
+    args = ap.parse_args()
+
+    npz_path = Path(args.npz)
+    data = np.load(npz_path, allow_pickle=True)
+    h1_sp = data["h1"]
+    h2_sp = data["h2"]
+    ecore = float(data["ecore"])
+
+    site = npz_path.parent.name
+
+    # Build spin-orbital integrals
+    h1_so, h2_so = spatial_to_spin_orbital(h1_sp, h2_sp)
+
+    try:
+        from openfermion import InteractionOperator
+        from openfermion.transforms import jordan_wigner, bravyi_kitaev
+    except Exception as e:
+        raise RuntimeError("OpenFermion not installed. Try: pip install openfermion") from e
+
+    interaction = InteractionOperator(ecore, h1_so, h2_so)
+    qubit_op = jordan_wigner(interaction) if args.mapping == "jw" else bravyi_kitaev(interaction)
+
+    # Serialize Pauli terms
+    terms = []
+    for term, coeff in qubit_op.terms.items():
+        terms.append({
+            "paulis": [(int(q), str(p)) for (q, p) in term],
+            "coeff_real": float(np.real(coeff)),
+            "coeff_imag": float(np.imag(coeff)),
+        })
+
+    outpath = Path(args.out) if args.out else (npz_path.parent / f"qubit_hamiltonian_{args.mapping}.json")
+
+    payload = {
+        "site": site,
+        "mapping": args.mapping,
+        "n_spatial_orbitals": int(h1_sp.shape[0]),
+        "n_spin_orbitals": int(h1_so.shape[0]),
+        "n_qubits": int(qubit_op.n_qubits),
+        "ecore": ecore,
+        "terms": terms,
+        "provenance": {
+            "npz": str(npz_path),
+            "charge": int(data["charge"]) if "charge" in data else None,
+            "spin": int(data["spin"]) if "spin" in data else None,
+            "basis": str(data["basis"]) if "basis" in data else None,
+            "method": str(data["method"]) if "method" in data else None,
+        }
+    }
+
+    outpath.write_text(json.dumps(payload, indent=2))
+    print(f"Wrote: {outpath}")
+
+if __name__ == "__main__":
+    main()
