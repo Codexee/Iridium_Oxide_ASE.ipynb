@@ -391,8 +391,8 @@ def main():
     cluster_path = Path(args.cluster)
     # If a relative path was provided, resolve it relative to repo root (parent of scripts/)
     if not cluster_path.is_absolute():
-    repo_root = Path(__file__).resolve().parents[1]
-    candidate = (repo_root / cluster_path).resolve()
+        repo_root = Path(__file__).resolve().parents[1]
+        candidate = (repo_root / cluster_path).resolve()
     if candidate.exists():
         cluster_path = candidate
     if not cluster_path.exists():
