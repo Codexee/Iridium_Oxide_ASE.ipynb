@@ -34,7 +34,22 @@ from ase.io import read
 from pyscf import gto, scf, ao2mo
 from pyscf.tools import molden
 
+def json_sanitize(obj):
+    """Convert numpy scalars/arrays into plain Python types for JSON."""
+    import numpy as np
 
+    if isinstance(obj, (np.integer,)):
+        return int(obj)
+    if isinstance(obj, (np.floating,)):
+        return float(obj)
+    if isinstance(obj, (np.ndarray,)):
+        return obj.tolist()
+    if isinstance(obj, dict):
+        return {str(k): json_sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [json_sanitize(x) for x in obj]
+    return obj
+   
 def resolve_path(p: str) -> Path:
     path = Path(p)
     if path.is_absolute():
@@ -272,7 +287,7 @@ def main():
         "h2": h2.tolist(),
     }
     json_path = outdir / "fermionic_active_space.json"
-    json_path.write_text(json.dumps(payload))
+    json_path.write_text(json.dumps(json_sanitize(payload), indent=2))
     print(f"Wrote: {json_path}")
 
     if args.write_molden:
