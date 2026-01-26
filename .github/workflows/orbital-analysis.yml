@@ -110,7 +110,7 @@ jobs:
           echo "Using latest successful cluster extraction run id: ${RID}"
           echo "run_id=${RID}" >> "$GITHUB_OUTPUT"
 
-      - name: Download cluster artifact
+      - name: Download cluster artifacts (no name filter)
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -118,14 +118,30 @@ jobs:
           set -euo pipefail
           mkdir -p artifacts
 
-          ART="${{ inputs.artifact_name_prefix }}-${{ inputs.site }}"
           RID="${{ steps.resolve.outputs.run_id }}"
-
-          echo "Downloading artifact '${ART}' from run id ${RID}"
-          gh run download "${RID}" -n "${ART}" -D artifacts
+          echo "Downloading ALL artifacts from run id ${RID}"
+          gh run download "${RID}" -D artifacts
 
           echo "Downloaded files:"
-          find artifacts -maxdepth 3 -type f -print
+          find artifacts -maxdepth 4 -type f -print
+      
+      - name: Validate inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "site='${{ inputs.site }}'"
+          echo "prefix='${{ inputs.artifact_name_prefix }}'"
+
+          if [ -z "${{ inputs.site }}" ]; then
+            echo "ERROR: inputs.site is empty. Set it when dispatching (e.g. o69)."
+            exit 1
+          fi
+
+          if [ -z "${{ inputs.artifact_name_prefix }}" ]; then
+            echo "ERROR: inputs.artifact_name_prefix is empty. Set it (e.g. cluster)."
+            exit 1
+          fi
+
 
       - name: Locate cluster geometry file
         id: locate
