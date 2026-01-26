@@ -1,0 +1,173 @@
+name: Build fermionic Hamiltonian + export qubit Hamiltonian (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      site:
+        description: "Site label (e.g. o69)"
+        required: true
+        default: "o69"
+      cluster_run_id:
+        description: "Optional: cluster-extraction run ID (blank = latest successful on this branch)"
+        required: false
+        default: ""
+      charge:
+        description: "Cluster charge (neutral primary = 0)"
+        required: true
+        default: "0"
+      spin:
+        description: "2S (Nalpha - Nbeta). Closed shell = 0"
+        required: true
+        default: "0"
+      method:
+        description: "Mean-field method"
+        required: true
+        default: "RHF"
+      basis:
+        description: "PySCF basis set (start simple; heavy elements may require adjustment)"
+        required: true
+        default: "def2-svp"
+      region_cutoff:
+        description: "Region cutoff around H (Å) used for region-based selection"
+        required: true
+        default: "3.0"
+      n_occ:
+        description: "Number of occupied active orbitals (region-based selection)"
+        required: true
+        default: "4"
+      n_virt:
+        description: "Number of virtual active orbitals (region-based selection)"
+        required: true
+        default: "3"
+      mapping:
+        description: "Qubit mapping"
+        required: true
+        default: "jw"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build-and-export:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install micromamba (Python deps)
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          micromamba-version: "latest"
+          environment-name: ham
+          create-args: >-
+            -c conda-forge
+            python=3.11
+            numpy
+            ase
+            pyscf
+            openfermion
+            pip
+
+      - name: Resolve cluster extraction run id
+        id: resolve
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          if [ -n "${{ inputs.cluster_run_id }}" ]; then
+            echo "run_id=${{ inputs.cluster_run_id }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          WF=".github/workflows/cluster-extraction.yml"
+          BR="${GITHUB_REF_NAME}"
+
+          RID="$(gh run list \
+            --workflow "$WF" \
+            --branch "$BR" \
+            --status success \
+            --limit 20 \
+            --json databaseId \
+            --jq '.[0].databaseId')"
+
+          if [ -z "${RID}" ] || [ "${RID}" = "null" ]; then
+            echo "No successful runs found for '${WF}' on branch '${BR}'"
+            exit 1
+          fi
+
+          echo "Using latest successful cluster-extraction run id: ${RID}"
+          echo "run_id=${RID}" >> "$GITHUB_OUTPUT"
+
+      - name: Download ALL cluster artifacts from that run
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          RID="${{ steps.resolve.outputs.run_id }}"
+
+          echo "Downloading all artifacts from run id: ${RID}"
+          gh run download "${RID}" -D artifacts
+
+          echo "Downloaded files:"
+          find artifacts -maxdepth 5 -type f -print
+
+      - name: Locate cluster geometry file
+        id: locate
+        shell: bash
+        run: |
+          set -euo pipefail
+          SITE="${{ inputs.site }}"
+
+          TRAJ="$(find artifacts -type f -name "${SITE}_cluster.traj" | head -n 1 || true)"
+          XYZ="$(find artifacts -type f -name "${SITE}_cluster.xyz"  | head -n 1 || true)"
+
+          if [ -n "$TRAJ" ]; then
+            echo "cluster_path=$TRAJ" >> "$GITHUB_OUTPUT"
+            echo "Using cluster traj: $TRAJ"
+          elif [ -n "$XYZ" ]; then
+            echo "cluster_path=$XYZ" >> "$GITHUB_OUTPUT"
+            echo "Using cluster xyz: $XYZ"
+          else
+            echo "ERROR: Could not find ${SITE}_cluster.traj or ${SITE}_cluster.xyz"
+            find artifacts -type f \( -name "*.traj" -o -name "*.xyz" \) -print || true
+            exit 1
+          fi
+
+      - name: Build fermionic active-space Hamiltonian (neutral primary)
+        shell: bash
+        run: |
+          set -euo pipefail
+          micromamba run -n ham python scripts/build_fermionic_hamiltonian_pyscf.py \
+            "${{ steps.locate.outputs.cluster_path }}" \
+            --site "${{ inputs.site }}" \
+            --charge "${{ inputs.charge }}" \
+            --spin "${{ inputs.spin }}" \
+            --basis "${{ inputs.basis }}" \
+            --method "${{ inputs.method }}" \
+            --region-cutoff "${{ inputs.region_cutoff }}" \
+            --n-occ "${{ inputs.n_occ }}" \
+            --n-virt "${{ inputs.n_virt }}" \
+            --outdir "outputs/hamiltonians"
+
+      - name: Export qubit Hamiltonian JSON
+        shell: bash
+        run: |
+          set -euo pipefail
+          micromamba run -n ham python scripts/export_qubit_hamiltonian_json.py \
+            "outputs/hamiltonians/${{ inputs.site }}/fermionic_active_space.npz" \
+            --mapping "${{ inputs.mapping }}"
+
+      - name: Upload Hamiltonian artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: hamiltonian-${{ inputs.site }}-q${{ inputs.charge }}-spin${{ inputs.spin }}-${{ inputs.mapping }}
+          path: |
+            outputs/hamiltonians/${{ inputs.site }}/fermionic_active_space.npz
+            outputs/hamiltonians/${{ inputs.site }}/fermionic_active_space.json
+            outputs/hamiltonians/${{ inputs.site }}/qubit_hamiltonian_${{ inputs.mapping }}.json
