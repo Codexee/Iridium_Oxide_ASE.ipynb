@@ -396,7 +396,7 @@ def main():
     if candidate.exists():
         cluster_path = candidate
     if not cluster_path.exists():
-    raise FileNotFoundError(f"Cluster file not found: {cluster_path}")
+        raise FileNotFoundError(f"Cluster file not found: {cluster_path}")
         
     outdir = Path(args.outdir) / args.site
     outdir.mkdir(parents=True, exist_ok=True)
