@@ -14,7 +14,8 @@ on:
 
 permissions:
   contents: read
-
+  actions: read
+  
 jobs:
   extract-cluster:
     runs-on: ubuntu-latest
@@ -34,11 +35,35 @@ jobs:
           conda env create -f environment.yml || true
           conda run -n iro2 python -c "import numpy, ase; print('env ok')"
 
-      - name: Download optimization artifact for this site
-        uses: actions/download-artifact@v4
-        with:
-          name: opt-${{ inputs.site }}
-          path: opt
+      - name: Download optimization artifact for this site (from latest successful optimize run)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # Adjust this to the exact workflow name of your optimization pipeline (as shown in the Actions tab)
+          OPT_WORKFLOW_NAME="IrO2 CI (states + manual optimize)"
+
+          RUN_ID="$(gh run list \
+            --workflow "$OPT_WORKFLOW_NAME" \
+            --branch "${GITHUB_REF_NAME}" \
+            --status success \
+            --limit 20 \
+            --json databaseId \
+            --jq '.[0].databaseId')"
+
+          if [ -z "${RUN_ID}" ] || [ "${RUN_ID}" = "null" ]; then
+            echo "No successful runs found for workflow: ${OPT_WORKFLOW_NAME} on branch ${GITHUB_REF_NAME}"
+            exit 1
+          fi
+
+          echo "Using optimize workflow run id: ${RUN_ID}"
+          mkdir -p opt
+          gh run download "${RUN_ID}" -n "opt-${{ inputs.site }}" -D opt
+
+          echo "Downloaded artifact opt-${{ inputs.site }} into ./opt"
+
 
       - name: Locate optimized traj
         shell: bash -l {0}
