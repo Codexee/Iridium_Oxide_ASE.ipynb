@@ -1,0 +1,73 @@
+name: Extract quantum cluster (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      site:
+        description: "Site index (e.g. 69)"
+        required: true
+        default: "69"
+      cutoff:
+        description: "Cutoff radius in Å"
+        required: true
+        default: "6.0"
+
+permissions:
+  contents: read
+
+jobs:
+  extract-cluster:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          auto-activate: false
+
+      - name: Create conda environment
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+          conda env create -f environment.yml || true
+          conda run -n iro2 python -c "import numpy, ase; print('env ok')"
+
+      - name: Download optimization artifact for this site
+        uses: actions/download-artifact@v4
+        with:
+          name: opt-${{ inputs.site }}
+          path: opt
+
+      - name: Locate optimized traj
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+          echo "Contents:"
+          find opt -maxdepth 6 -type f | head -n 200
+          FINAL_TRAJ="$(find opt -name "*_final.traj" | head -n 1)"
+          if [ -z "${FINAL_TRAJ}" ]; then
+            echo "No *_final.traj found in artifact opt-${{ inputs.site }}"
+            exit 1
+          fi
+          echo "FINAL_TRAJ=${FINAL_TRAJ}" >> "$GITHUB_ENV"
+          echo "Using: ${FINAL_TRAJ}"
+
+      - name: Extract cluster
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+          conda run -n iro2 python -u scripts/extract_cluster.py \
+            --traj "${FINAL_TRAJ}" \
+            --center_atom_index ${{ inputs.site }} \
+            --cutoff ${{ inputs.cutoff }} \
+            --outdir outputs/clusters \
+            --tag o${{ inputs.site }}
+          ls -la outputs/clusters
+
+      - name: Upload cluster files
+        uses: actions/upload-artifact@v4
+        with:
+          name: cluster-o${{ inputs.site }}
+          path: outputs/clusters/*
