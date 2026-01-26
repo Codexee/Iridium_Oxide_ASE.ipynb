@@ -139,16 +139,25 @@ def parse_molden(molden_path: Path) -> MoldenData:
 
     # Locate sections
     def find_section(name: str) -> int:
-        for i, line in enumerate(text):
-            if line.strip().lower() == f"[{name.lower()}]":
-                return i
-        return -1
+    target = f"[{name.lower()}]"
+    for i, line in enumerate(text):
+        s = line.strip().lower()
+        # Accept "[atoms]" and also "[atoms] (angs)" etc.
+        if s.startswith(target):
+            return i
+    return -1
+
 
     i_atoms = find_section("Atoms")
     i_gto = find_section("GTO")
     i_mo = find_section("MO")
     if i_atoms < 0 or i_gto < 0 or i_mo < 0:
         raise ValueError("Molden file missing required sections: [Atoms], [GTO], [MO].")
+    
+    print("Molden headers found:")
+    for line in text:
+        if line.strip().startswith("["):
+            print(line.strip())
 
     # -------- Parse [Atoms]
     atom_symbols: List[str] = []
