@@ -36,6 +36,16 @@ def json_sanitize(obj):
         return [json_sanitize(x) for x in obj]
     return obj
 
+def infer_n_qubits_from_qubitop(qubit_op) -> int:
+    """Infer number of qubits from the largest qubit index appearing in terms."""
+    max_q = -1
+    for term in qubit_op.terms.keys():
+        # term is a tuple like ((q,'X'), (q2,'Z'), ...)
+        for q, _ in term:
+            if q > max_q:
+                max_q = q
+    return max_q + 1  # if no terms, returns 0
+
 def spatial_to_spin_orbital(h1_spatial: np.ndarray, h2_spatial: np.ndarray):
     """
     Expand spatial integrals (n spatial) -> spin-orbital integrals (2n spin).
@@ -114,7 +124,7 @@ def main():
         "mapping": args.mapping,
         "n_spatial_orbitals": int(h1_sp.shape[0]),
         "n_spin_orbitals": int(h1_so.shape[0]),
-        "n_qubits": int(qubit_op.n_qubits),
+        "n_qubits": int(infer_n_qubits_from_qubitop(qubit_op)),
         "ecore": ecore,
         "terms": terms,
         "provenance": {
