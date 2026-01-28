@@ -32,3 +32,5 @@ jobs:
       run: |
         conda install pytest
         pytest -q -m "not slow"
+    - name: Quantum step 1
+      run: conda run -n base python load_jw --input qubit_hamiltonian_jw.json 
