@@ -34,7 +34,10 @@ jobs:
         pytest -q -m "not slow"
     - name: Install dependencies for scripts 
       run: |
-        conda install qiskit qiskit_aer qiskit_superstaq
+        conda install conda-forge::qiskit
+        conda install conda-forge::qiskit-aer
+        conda install conda-forge::qiskit-algorithms
+        pip install qiskit-superstaq
     - name: Quantum step 1
       run: |
         conda run -n base python load_jw --input qubit_hamiltonian_jw.json 
