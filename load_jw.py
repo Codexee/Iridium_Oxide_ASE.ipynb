@@ -13,9 +13,9 @@ from qiskit_algorithms.optimizers import COBYLA
 
 json_path = Path("inputs/qubit_hamiltonian_jw.json")
 
-def load_jw_json(path_candidates: list[str]) -> tuple[dict, str]:
+def load_jw_json(json_path: list[str]) -> tuple[dict, str]:
     last_err = None
-    for p in path_candidates:
+    for p in json_path:
         try:
             with open(p, "r") as f:
                 return json.load(f), p
@@ -23,7 +23,7 @@ def load_jw_json(path_candidates: list[str]) -> tuple[dict, str]:
             last_err = e
     raise FileNotFoundError(
         "Could not open qubit_hamiltonian_jw.json. Tried:\n  - "
-        + "\n  - ".join(path_candidates)
+        + "\n  - ".join(json_path)
         + f"\nLast error: {last_err}"
     )
 
