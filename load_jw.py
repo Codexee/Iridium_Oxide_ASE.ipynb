@@ -2,6 +2,7 @@ import os
 import json
 import warnings
 import numpy as np
+from pathlib import Path
 
 from qiskit.quantum_info import SparsePauliOp
 from qiskit.circuit.library import TwoLocal
@@ -9,6 +10,8 @@ from qiskit_algorithms.minimum_eigensolvers import VQE
 from qiskit_algorithms.optimizers import COBYLA
 
 # load JW JSON
+
+json_path = Path("inputs/qubit_hamiltonian_jw.json")
 
 def load_jw_json(path_candidates: list[str]) -> tuple[dict, str]:
     last_err = None
@@ -110,9 +113,8 @@ def run_vqe_superstaq_if_backendv2(H: SparsePauliOp, target: str = "ibmq_fez") -
     return e0
 
 def main():
-    jw, path_used = load_jw_json([
-        "qubit_hamiltonian_jw.json",
-    ])
+    jw, path_used = load_jw_json(
+        json_path)
     H = jw_to_sparsepauliop(jw)
 
     print(f"Loaded JW Hamiltonian from: {path_used}")
