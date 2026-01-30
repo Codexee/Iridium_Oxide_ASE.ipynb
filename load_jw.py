@@ -3,6 +3,7 @@ import json
 import warnings
 import numpy as np
 from pathlib import Path
+from typing import Iterable, Union
 
 from qiskit.quantum_info import SparsePauliOp
 from qiskit.circuit.library import TwoLocal
@@ -11,47 +12,31 @@ from qiskit_algorithms.optimizers import COBYLA
 
 # load JW JSON
 
-json_path = Path("inputs/qubit_hamiltonian_jw.json")
+def load_jw_json(json_path: Union[str, Path, Iterable[Union[str, Path]]]):
+    # Allow passing a single path or a list/tuple of paths
+    if isinstance(json_path, (str, Path)):
+        candidates = [json_path]
+    else:
+        candidates = list(json_path)
 
-def load_jw_json(json_path: list[str]) -> tuple[dict, str]:
     last_err = None
-    for p in json_path:
+    tried = []
+
+    for p in candidates:
+        p = Path(p)
+        tried.append(str(p))
         try:
-            with open(p, "r") as f:
-                return json.load(f), p
-        except Exception as e:
+            with p.open("r") as f:
+                jw = json.load(f)
+            return jw, str(p)
+        except OSError as e:
             last_err = e
+
     raise FileNotFoundError(
-        "Could not open qubit_hamiltonian_jw.json. Tried:\n  - "
-        + "\n  - ".join(json_path)
-        + f"\nLast error: {last_err}"
+        f"Could not open {Path(tried[0]).name if tried else 'JW JSON'}. Tried:\n"
+        + "\n".join(f"  - {t}" for t in tried)
+        + (f"\nLast error: {last_err}" if last_err else "")
     )
-
-def jw_to_sparsepauliop(jw_obj: dict) -> SparsePauliOp:
-    """
-    JW JSON format:
-      jw_obj["terms"] is a list of terms.
-      Each term has:
-        term["paulis"] = list of [q, 'X'/'Y'/'Z'] entries
-        term["coeff_real"], term["coeff_imag"]
-    """
-    n = int(jw_obj["n_qubits"])
-    labels: list[str] = []
-    coeffs: list[complex] = []
-
-    for term in jw_obj["terms"]:
-        label = ["I"] * n
-        for q, p in term["paulis"]:
-            q = int(q)
-            if q < 0 or q >= n:
-                raise ValueError(f"Qubit index {q} out of range for n_qubits={n}")
-            if p not in ("I", "X", "Y", "Z"):
-                raise ValueError(f"Invalid Pauli '{p}' in term {term}")
-            label[n - 1 - q] = p
-        labels.append("".join(label))
-        coeffs.append(complex(float(term["coeff_real"]), float(term["coeff_imag"])))
-
-    return SparsePauliOp.from_list(list(zip(labels, coeffs)))
 
 # vqe
 
@@ -113,8 +98,15 @@ def run_vqe_superstaq_if_backendv2(H: SparsePauliOp, target: str = "ibmq_fez") -
     return e0
 
 def main():
-    jw, path_used = load_jw_json(
-        json_path)
+    candidates = [
+        os.getenv("JW_JSON_PATH", "").strip(),
+        "inputs/qubit_hamiltonian_jw.json",
+        "qubit_hamiltonian_jw.json",
+    ]
+    candidates = [c for c in candidates if c]  # drop empty strings
+
+    jw, path_used = load_jw_json(candidates)
+    print(f"Loaded JW Hamiltonian from: {path_used}")
     H = jw_to_sparsepauliop(jw)
 
     print(f"Loaded JW Hamiltonian from: {path_used}")
