@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 import json
 import warnings
@@ -9,7 +10,6 @@ from qiskit.quantum_info import SparsePauliOp
 from qiskit.circuit.library import TwoLocal
 from qiskit_algorithms.minimum_eigensolvers import VQE
 from qiskit_algorithms.optimizers import COBYLA
-from __future__ import annotations
 
 # load JW JSON
 
