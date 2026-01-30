@@ -11,7 +11,7 @@ from qiskit.circuit.library import TwoLocal
 from qiskit_algorithms.minimum_eigensolvers import VQE
 from qiskit_algorithms.optimizers import SLSQP
 from qiskit_algorithms.exceptions import AlgorithmError
-from qiskit_aer.primitives import Estimator as AerEstimator
+from qiskit_aer.primitives import EstimatorV2 as AerEstimatorV2
 
 
 # --------------------------
@@ -103,12 +103,11 @@ def build_ansatz(num_qubits: int) -> TwoLocal:
             reps=1,   # CI-stable
         )
 
-
 def run_vqe_local_aer(H: SparsePauliOp) -> float:
-    estimator = AerEstimator()          # V1 estimator (stable with qiskit_algorithms.VQE)
     ansatz = build_ansatz(H.num_qubits)
     optimizer = SLSQP(maxiter=60)
 
+    estimator = AerEstimatorV2()   # <-- V2 estimator (matches your VQE)
     vqe = VQE(estimator=estimator, ansatz=ansatz, optimizer=optimizer)
 
     try:
@@ -139,6 +138,12 @@ def run_vqe_superstaq(H: SparsePauliOp, target: str = "ibmq_fez") -> Optional[fl
     # For now, skip to avoid flaky CI.
     print("SUPERSTAQ_API_KEY present, but Superstaq VQE not implemented in CI-safe mode.")
     return None
+def maybe_truncate(H: SparsePauliOp) -> SparsePauliOp:
+    k = int(os.getenv("MAX_TERMS", "0"))
+    if k <= 0 or len(H.paulis) <= k:
+        return H
+    idx = np.argsort(np.abs(H.coeffs))[::-1][:k]
+    return SparsePauliOp(H.paulis[idx], H.coeffs[idx]).simplify(atol=0)
 
 
 # --------------------------
@@ -154,8 +159,11 @@ def main():
 
     jw, path_used = load_jw_json(candidates)
     print(f"Loaded JW Hamiltonian from: {path_used}")
-
+    
     H = jw_to_sparsepauliop(jw)
+    print(f"n_qubits = {H.num_qubits}, n_terms = {len(H.paulis)}")
+
+    H = maybe_truncate(H)
     print(f"n_qubits = {H.num_qubits}, n_terms = {len(H.paulis)}")
 
     e_local = run_vqe_local_aer(H)
