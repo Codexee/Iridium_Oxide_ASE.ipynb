@@ -3,12 +3,13 @@ import json
 import warnings
 import numpy as np
 from pathlib import Path
-from typing import Iterable, Union
+from typing import Iterable, Union, Any
 
 from qiskit.quantum_info import SparsePauliOp
 from qiskit.circuit.library import TwoLocal
 from qiskit_algorithms.minimum_eigensolvers import VQE
 from qiskit_algorithms.optimizers import COBYLA
+from __future__ import annotations
 
 # load JW JSON
 
@@ -114,37 +115,96 @@ def _to_complex(x):
             return _to_complex(x["value"])
     raise TypeError(f"Unrecognized coefficient encoding: {x!r}")
 
-
-def jw_to_sparsepauliop(jw) -> SparsePauliOp:
+def jw_to_sparsepauliop(jw_obj: Any) -> SparsePauliOp:
     """
-    Convert a JW Hamiltonian JSON (common encodings) into Qiskit's SparsePauliOp.
+    Convert JW Hamiltonian JSON into Qiskit's SparsePauliOp.
 
-    Supported shapes:
-      1) {"paulis": ["IZX", ...], "coeffs": [0.1, [re,im], {"real":..,"imag":..}, ...]}
-      2) {"terms": [{"pauli":"IZX","coeff":...}, ...]}
-      3) [{"pauli":"IZX","coeff":...}, ...]   (list directly)
-      4) {"terms": [["IZX", coeff], ["III", coeff], ...]}
+    Supports:
+      A) The project format:
+         {
+           "n_qubits": 14,
+           "terms": [{"paulis": [[0,"Z"], [3,"X"], ...], "coeff_real": ..., "coeff_imag": ...}, ...]
+         }
+         NOTE: "paulis": [] means identity term.
+      B) Label string formats:
+         {"paulis": ["IZX", ...], "coeffs": [...]}
+         {"terms": [{"pauli": "IZX", "coeff": ...}, ...]}
+         [["IZX", coeff], ...]
     """
-    # Extract terms into (label, coeff)
+    # ---------- helpers ----------
+    def _to_complex(x: Any) -> complex:
+        if isinstance(x, (int, float, complex, np.number)):
+            return complex(x)
+        if isinstance(x, (list, tuple)) and len(x) == 2:
+            return complex(float(x[0]), float(x[1]))
+        if isinstance(x, dict):
+            if "real" in x or "imag" in x:
+                return complex(float(x.get("real", 0.0)), float(x.get("imag", 0.0)))
+            if "re" in x or "im" in x:
+                return complex(float(x.get("re", 0.0)), float(x.get("im", 0.0)))
+            if "value" in x:
+                return _to_complex(x["value"])
+        raise TypeError(f"Unrecognized coefficient encoding: {x!r}")
+
+    def _label_from_sparse_paulis(paulis: list, n_qubits: int) -> str:
+        # Qiskit Pauli strings are ordered with qubit (n-1) on the left and qubit 0 on the right.
+        label = ["I"] * n_qubits
+        for item in paulis:
+            if not (isinstance(item, (list, tuple)) and len(item) == 2):
+                raise ValueError(f"Bad pauli entry {item!r}; expected [qubit_index, 'X/Y/Z']")
+            q, p = item
+            q = int(q)
+            p = str(p).upper()
+            if q < 0 or q >= n_qubits:
+                raise ValueError(f"Qubit index {q} out of range for n_qubits={n_qubits}")
+            if p not in ("I", "X", "Y", "Z"):
+                raise ValueError(f"Invalid Pauli '{p}' in entry {item!r}")
+            label[n_qubits - 1 - q] = p
+        return "".join(label)
+
+    # ---------- detect your project format first ----------
+    if isinstance(jw_obj, dict) and "terms" in jw_obj and "n_qubits" in jw_obj:
+        n = int(jw_obj["n_qubits"])
+        labels: list[str] = []
+        coeffs: list[complex] = []
+
+        for term in jw_obj["terms"]:
+            if not isinstance(term, dict):
+                raise TypeError(f"Unexpected term type {type(term)}; expected dict.")
+            paulis = term.get("paulis", [])
+            # paulis may be [] -> identity term (valid)
+            label = _label_from_sparse_paulis(paulis, n)
+
+            # coefficients in your JSON are split real/imag
+            if "coeff_real" in term or "coeff_imag" in term:
+                c = complex(float(term.get("coeff_real", 0.0)), float(term.get("coeff_imag", 0.0)))
+            else:
+                # fallback if someone stores "coeff" differently
+                c = _to_complex(term.get("coeff", term.get("coefficient", term.get("c"))))
+
+            labels.append(label)
+            coeffs.append(c)
+
+        H = SparsePauliOp.from_list(list(zip(labels, coeffs)))
+        return H.simplify(atol=0)  # combine duplicates safely
+
+    # ---------- otherwise: label-string formats ----------
     terms = None
-
-    if isinstance(jw, dict):
-        if "paulis" in jw and "coeffs" in jw:
-            labels = jw["paulis"]
-            coeffs = jw["coeffs"]
-            terms = list(zip(labels, coeffs))
-        elif "terms" in jw:
-            terms = jw["terms"]
-        elif "operators" in jw:  # fallback for some exporters
-            terms = jw["operators"]
+    if isinstance(jw_obj, dict):
+        if "paulis" in jw_obj and "coeffs" in jw_obj:
+            terms = list(zip(jw_obj["paulis"], jw_obj["coeffs"]))
+        elif "terms" in jw_obj:
+            terms = jw_obj["terms"]
+        elif "operators" in jw_obj:
+            terms = jw_obj["operators"]
         else:
-            raise ValueError(f"Unrecognized JW dict keys: {list(jw.keys())[:20]}")
-    elif isinstance(jw, list):
-        terms = jw
+            raise ValueError(f"Unrecognized JW dict keys: {list(jw_obj.keys())[:20]}")
+    elif isinstance(jw_obj, list):
+        terms = jw_obj
     else:
-        raise TypeError(f"Unsupported JW JSON type: {type(jw)}")
+        raise TypeError(f"Unsupported JW JSON type: {type(jw_obj)}")
 
-    pairs = []
+    pairs: list[tuple[str, complex]] = []
     max_len = 0
 
     for t in terms:
@@ -163,10 +223,8 @@ def jw_to_sparsepauliop(jw) -> SparsePauliOp:
         max_len = max(max_len, len(label))
         pairs.append((label, _to_complex(coeff)))
 
-    # Pad any shorter labels with identity on the left
     padded = [(("I" * (max_len - len(lbl)) + lbl), c) for (lbl, c) in pairs]
-
-    return SparsePauliOp.from_list(padded)
+    return SparsePauliOp.from_list(padded).simplify(atol=0)
 
 def main():
     candidates = [
