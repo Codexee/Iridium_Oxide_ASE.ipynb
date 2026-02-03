@@ -52,7 +52,6 @@ jobs:
           conda info
           python -V
 
-      # If your repo is installable, keep this. If not, delete this step.
       - name: Install repo (editable)
         shell: bash -l {0}
         run: |
