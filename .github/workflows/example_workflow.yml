@@ -1,0 +1,74 @@
+name: Example workflow (run_all.sh)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "examples/**"
+      - "scripts/**"
+      - ".github/workflows/example_workflow.yml"
+      - "requirements*.txt"
+      - "pyproject.toml"
+      - "setup.cfg"
+      - "environment*.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "examples/**"
+      - "scripts/**"
+      - ".github/workflows/example_workflow.yml"
+      - "requirements*.txt"
+      - "pyproject.toml"
+      - "setup.cfg"
+      - "environment*.yml"
+
+jobs:
+  run-example:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Conda is the most reliable way to get xtb in CI.
+      - name: Set up Miniconda (conda-forge)
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          python-version: "3.11"
+          channels: conda-forge
+          channel-priority: strict
+          activate-environment: example-env
+
+      - name: Install dependencies (conda)
+        shell: bash -l {0}
+        run: |
+          conda install -y \
+            numpy scipy \
+            ase \
+            xtb \
+            qiskit qiskit-aer
+          conda info
+          python -V
+
+      # If your repo is installable, keep this. If not, delete this step.
+      - name: Install repo (editable)
+        shell: bash -l {0}
+        run: |
+          python -m pip install -U pip
+          python -m pip install -e .
+
+      - name: Run canonical example
+        shell: bash -l {0}
+        run: |
+          bash examples/iro2_h_star_o69/run_all.sh
+
+      # Helpful for debugging reviewer-style failures
+      - name: Upload outputs artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: example-outputs
+          path: outputs
+          if-no-files-found: warn
