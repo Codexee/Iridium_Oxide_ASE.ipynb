@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iridium-oxide-ase"
+version = "0.1.0"
+description = "Reproducible classical-to-quantum workflows for IrO2 surface catalysis"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+
+authors = [
+  { name = "Your Name" }
+]
+
+dependencies = [
+  "numpy",
+  "scipy",
+  "ase",
+  "qiskit",
+  "qiskit-aer"
+]
+
+[tool.setuptools]
+packages = []
