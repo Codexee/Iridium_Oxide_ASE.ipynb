@@ -1,0 +1,101 @@
+name: Canonical example (run_all.sh)
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "examples/**"
+      - "scripts/**"
+      - "inputs/**"
+      - "environment.yml"
+      - ".github/workflows/example_run_all.yml"
+  push:
+    branches: ["main"]
+    paths:
+      - "examples/**"
+      - "scripts/**"
+      - "inputs/**"
+      - "environment.yml"
+      - ".github/workflows/example_run_all.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  generate-states:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          auto-activate: false
+
+      - name: Create conda environment
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+          conda env create -f environment.yml || true
+          conda env list
+
+      - name: Generate states (canonical set)
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+          rm -rf outputs || true
+          mkdir -p outputs
+          conda run -n iro2 python -u scripts/generate_states.py \
+            --state_set inputs/state_set.json \
+            --outputs outputs
+          find outputs/states -name "*.traj" | head -n 50
+
+      - name: Upload generated states
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-states
+          path: outputs/states/
+
+  run-example:
+    runs-on: ubuntu-latest
+    needs: generate-states
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          auto-update-conda: true
+          auto-activate: false
+
+      - name: Create conda environment
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+          conda env create -f environment.yml || true
+          conda run -n iro2 python -c "import numpy, ase, xtb; print('env ok')"
+
+      - name: Download generated states
+        uses: actions/download-artifact@v4
+        with:
+          name: generated-states
+          path: outputs/states/
+
+      - name: Run canonical example
+        shell: bash -l {0}
+        run: |
+          set -euo pipefail
+          # If your repo has a nested inner directory, uncomment and set it:
+          # cd Iridium_Oxide_ASE.ipynb
+          conda run -n iro2 bash examples/iro2_h_star_o69/run_all.sh
+
+      - name: Upload outputs artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canonical-example-outputs
+          path: outputs
+          if-no-files-found: warn
