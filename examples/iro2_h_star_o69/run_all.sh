@@ -80,7 +80,7 @@ echo "Prepared: ${READY_TRAJ}"
 echo "==> Step 2: Geometry optimisation"
 # Your CI uses: optimization_iro2_test.py --input ... --output ...
 run_env iro2 python -u scripts/optimization_iro2_test.py \
-  --input "${READY_TRAJ}" \
+  "${READY_TRAJ}" \
   --output "${OPT_OUTDIR}"
 
 # Locate optimised traj
