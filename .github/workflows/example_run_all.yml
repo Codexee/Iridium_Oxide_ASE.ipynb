@@ -83,6 +83,12 @@ jobs:
         with:
           name: generated-states
           path: outputs/states/
+          
+      - name: Create ham env (PySCF)
+        shell: bash -l {0}
+        run: |
+              conda create -n ham -c conda-forge -y python=3.11 pyscf numpy scipy
+              conda run -n ham python -c "import pyscf; print('pyscf ok')"
 
       - name: Run canonical example
         shell: bash -l {0}
