@@ -2,9 +2,9 @@
 
 **Manisha Malhotra**¹, **Neil Ramarapu**², **Fabio Rinaldi**³
 
-¹ *Westward Academy, United Kingdom*
-² *Thomas Jefferson High School, USA*
-³ *Google, Dublin, Ireland*
+¹ *Westward Academy, USA*
+² *Thomas Jefferson High School, Virginia, USA*
+³ *Google LLC, Dublin, Ireland*
 
 January 2026
 
@@ -66,13 +66,13 @@ The resulting Hamiltonian contains on the order of 10⁴ Pauli terms and was tes
 
 The software is openly available on GitHub at **[https://github.com/Codexee/Iridium_Oxide_ASE](https://github.com/Codexee/Iridium_Oxide_ASE)** under the MIT License.
 
-An archived version of the repository corresponding to this paper is available on Zenodo with DOI: **TBD**.
+An archived version of the repository will be created and assigned a DOI upon successful completion of the JOSS review, in accordance with JOSS submission guidelines.
 
 ## Reproducibility
 
 The repository contains the Python source code, documentation, example notebooks, and reference outputs required to reproduce the results presented in this paper. Continuous integration ensures that the workflow remains reproducible across updates.
 
-The archived Zenodo release provides a static snapshot of the codebase used to generate the Hamiltonians reported here. All parameters and choices in the workflow are deterministic or explicitly controlled, ensuring that the example results can be reproduced exactly given the specified software versions.
+The archived release will provide a static snapshot of the codebase used to generate the Hamiltonians reported here. All parameters and choices in the workflow are deterministic or explicitly controlled, ensuring that the example results can be reproduced exactly given the specified software versions.
 
 ## Future Work
 
