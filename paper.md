@@ -12,7 +12,7 @@ January 2026
 
 Bridging the gap between realistic surface catalysis models from density functional theory (DFT) and the input requirements of quantum algorithms is a non-trivial task. Surface DFT calculations typically model extended slabs and yield total energies or reaction energetics, whereas quantum algorithms (such as variational quantum eigensolvers) require a many-body Hamiltonian (e.g. a list of fermionic or qubit operators) as input.
 
-We present an open-source, reproducible software workflow that takes an optimized DFT slab model of a catalyst surface and systematically produces a few-body Hamiltonian suitable for quantum simulation. Starting from a DFT-optimized slab geometry, the workflow extracts a localized cluster around the active site, identifies an appropriate set of active orbitals, constructs the corresponding fermionic Hamiltonian, and then maps it to a qubit Hamiltonian. This end-to-end pipeline enables researchers to bridge surface science and quantum computing in a transparent and automated manner.
+We present an open-source, reproducible software workflow that takes an optimized DFT slab model of a catalyst surface and systematically produces a few-body Hamiltonian suitable for quantum simulation. Starting from a DFT-optimized slab geometry, the workflow extracts a localized cluster around the active site, identifies an appropriate set of active orbitals, systematically produces a few-body Hamiltonian suitable for quantum simulation, with Hamiltonian construction provided as an optional stage of the workflow. This end-to-end pipeline enables researchers to bridge surface science and quantum computing in a transparent and automated manner.
 
 We demonstrate the workflow on a representative electrochemical system: a hydrogen-based adsorbate (H* or OH*) on an IrO₂ catalyst surface. For this system, our software produces a 14-qubit Hamiltonian (derived from a 7-orbital active space) that can be directly used in quantum algorithms such as the Variational Quantum Eigensolver (VQE [@VQE]).
 
@@ -29,6 +29,11 @@ However, a major obstacle remains: how to obtain the required fermionic Hamilton
 Our software addresses this unmet need by providing a reproducible pipeline that takes an optimized slab model as input and produces a Hamiltonian ready for quantum simulation. This capability is especially important for systems like IrO₂-catalyzed HER, where the surface can cycle through oxide and hydroxide states involving multiple Ir oxidation states. By facilitating the construction of active-space Hamiltonians for these challenging catalytic sites, our workflow opens the door to applying resource-aware quantum algorithms to heterogeneous catalysis.
 
 ## Software Description
+
+
+### Pipeline Overview Figure
+
+![Overview of the workflow from DFT slab to qubit Hamiltonian. The pipeline shows slab optimization, cluster extraction, active-space selection, fermionic Hamiltonian construction, and qubit mapping.](figures/pipeline_overview.png)
 
 ### Workflow Overview
 
@@ -52,7 +57,7 @@ The software is implemented in Python and builds on open-source libraries includ
 
 OpenFermion [@OpenFermion] is used to perform fermion-to-qubit mappings such as Jordan–Wigner or Bravyi–Kitaev. The resulting qubit Hamiltonians are stored in JSON format together with metadata to ensure clarity and reproducibility.
 
-The repository includes continuous integration tests using GitHub Actions to ensure that updates to the code do not break the workflow. A Jupyter notebook example demonstrates the full pipeline on an IrO₂ surface with an adsorbate, producing a reference Hamiltonian that is automatically checked for consistency.
+The repository includes continuous integration tests using GitHub Actions to ensure that updates to the code do not break the workflow. A Jupyter notebook example demonstrates the full pipeline on an IrO₂ surface with an adsorbate, producing a reference Hamiltonian that is automatically checked for consistency. To ensure reasonable execution times for continuous integration and example usage, the most computationally expensive stages of the workflow—specifically the construction and qubit mapping of the full fermionic Hamiltonian—are provided as optional steps. The default example workflow executes slab processing, cluster extraction, and orbital analysis, while Hamiltonian generation can be enabled by the user when sufficient computational resources are available.
 
 ## Application
 
@@ -70,6 +75,8 @@ The resulting Hamiltonian contains on the order of 10⁴ Pauli terms and was tes
 
 The software is openly available on GitHub at **[https://github.com/Codexee/Iridium_Oxide_ASE](https://github.com/Codexee/Iridium_Oxide_ASE)** under the MIT License.
 
+The repository includes preconfigured examples that demonstrate the full workflow logic without requiring long-running quantum chemistry calculations. Complete Hamiltonian generation is reproducible using the same code paths and parameters and is documented in the repository, but is not executed by default in automated tests.
+
 An archived version of the repository will be created and assigned a DOI upon successful completion of the JOSS review, in accordance with JOSS submission guidelines.
 
 ## Reproducibility
@@ -81,10 +88,6 @@ The archived release will provide a static snapshot of the codebase used to gene
 ## AI Disclosure
 
 This manuscript and accompanying software documentation were prepared with the assistance of an AI-based language model. The AI system was used to support tasks such as Markdown conversion, structural editing for JOSS compliance, and language refinement. All scientific content, technical decisions, interpretations, and conclusions were reviewed, validated, and approved by the authors, who take full responsibility for the work.
-
-## Pipeline Overview Figure
-
-![Overview of the workflow from DFT slab to qubit Hamiltonian. The pipeline shows slab optimization, cluster extraction, active-space selection, fermionic Hamiltonian construction, and qubit mapping.](figures/pipeline_overview.png)
 
 ## Future Work
 
