@@ -1,45 +1,99 @@
 # Iridium Oxide ASE
 
-This repository contains an open-source, reproducible workflow for generating and analysing
-surface-bound intermediates on IrO₂ electrocatalysts using the Atomic Simulation Environment (ASE).
+This repository contains an open-source, reproducible workflow for constructing, analysing,
+and reducing atomistic models of IrO₂ electrocatalyst surfaces using the Atomic Simulation
+Environment (ASE).
 
-The codebase is designed to support benchmarking and hypothesis generation for operando
-synchrotron studies (e.g. AP-XPS / AP-XAS) and to interface with emerging hybrid
-classical–quantum simulation methodologies.
+The project is designed to support comparative surface science studies, hypothesis
+generation for operando experiments (e.g. AP-XPS / AP-XAS), and model reduction for
+hybrid classical–quantum simulation workflows.
 
----
+While the current focus is IrO₂ and hydrogen adsorption intermediates, the workflow is
+deliberately modular and extensible to other materials systems and physics-driven
+comparative studies.
+
+## Scientific scope
+
+The workflow supports:
+
+- Automated generation of IrO₂ slab models and adsorption configurations
+
+- Geometry optimisation using semi-empirical and first-principles backends
+
+- Systematic comparison of surface-bound intermediates across sites and coverages
+
+- Extraction of chemically meaningful active subspaces
+
+- Reduction of ab initio Hamiltonians for downstream classical and quantum simulations
+
+- Benchmarking and validation against experimental observables
+
+The pipeline is intended to bridge atomistic simulation, reduced-order modelling,
+and emerging quantum algorithms in a single reproducible framework.
 
 ## Repository layout
 
-- `scripts/`  
-  Python scripts for slab preparation, adsorption-site generation, geometry optimisation,
-  and analysis.
+**scripts/**  
+Python scripts for slab construction, adsorption-site generation, geometry optimisation,
+active-space extraction, Hamiltonian construction, and analysis.
 
-- `inputs/`  
-  Input files and reference structures used by the scripts (including slab geometries).
+**inputs/**  
+Reference structures, slab definitions, and configuration files used by the workflow.
 
-- `tests/`  
-  Automated tests executed via GitHub Actions to validate core functionality.
+**examples/**  
+Self-contained example workflows demonstrating full end-to-end execution of the
+pipeline for specific surface states and adsorbates.
 
----
+**outputs/**  
+Generated structures, optimisation results, reduced Hamiltonians, and analysis artefacts
+(excluded from version control where appropriate).
 
-## Reproducibility note
+**tests/**  
+Automated tests executed via GitHub Actions to validate core workflow components.
 
-Initial IrO₂ slab construction and relaxation were performed using Quantum Espresso prior
-to ASE-based analysis.
+## Reproducibility and development status
 
-The full analysis workflow (slab preparation, adsorption-site generation, and optimisation
-scripts) used to generate the benchmark data reported in the accompanying technical report
-is currently under active development on a dedicated development branch.
+Initial IrO₂ slab construction and baseline relaxation were performed using Quantum
+ESPRESSO, prior to ASE-based automation and analysis.
 
-The `main` branch contains stable examples and documentation; the development branch
-contains the complete pipeline used to generate the reported benchmark dataset.
+The workflow is under active development:
 
----
+The main branch contains stable examples, documentation, and tested reference scripts.
 
-## Running locally
+A dedicated development branch contains the full end-to-end pipeline used to generate
+current benchmark datasets, including active-space selection and Hamiltonian reduction.
 
-To run example scripts locally:
+Versioned releases will be used to tag fully reproducible benchmark states.
 
-```bash
-python scripts/iro2_test_1.py
+### Running locally
+
+An end-to-end example of the IrO₂ H* adsorption workflow is provided in:
+
+```examples/iro2_h_star_o69/```
+
+
+This example executes the full pipeline via a shell script that orchestrates the individual
+Python stages in the correct order.
+
+To run locally:
+
+```cd examples/iro2_h_star_o69```  
+```bash run_all.sh``` 
+
+### Note on workflow orchestration
+
+The workflow is intentionally not driven by a single monolithic Python script.
+Instead, run_all.sh acts as a lightweight orchestration layer that:
+
+Executes each stage (setup, optimisation, analysis, reduction) explicitly
+
+Preserves intermediate outputs for inspection and debugging
+
+Makes the execution order transparent and reproducible
+
+This design choice reflects the exploratory and comparative nature of the project, and
+allows individual stages to be rerun or substituted without modifying core scripts.
+
+Users extending the workflow to new surface states, adsorbates, or materials systems are
+encouraged to copy and adapt the example run_all.sh rather than invoking scripts
+individually.
