@@ -137,20 +137,26 @@ run_env iro2 python scripts/orbital_analysis_xtb_cluster.py \
 echo "Orbital analysis outputs:"
 ls -la "${ORBITAL_OUTDIR}" || true
 
-echo "==> Step 5: Build fermionic Hamiltonian (PySCF) in ham env"
-run_env ham python scripts/build_fermionic_hamiltonian_pyscf.py \
-  "${CLUSTER_PATH}" \
-  --site "${SITE}" \
-  --charge "${HAM_CHARGE}" \
-  --spin "${HAM_SPIN}" \
-  --basis "${BASIS}" \
-  --method "${METHOD}" \
-  --region-cutoff "${REGION_CUTOFF}" \
-  --n-occ "${N_OCC}" \
-  --n-virt "${N_VIRT}" \
-  --outdir "${HAM_OUTDIR}"
+#echo "==> Step 5: Build fermionic Hamiltonian (PySCF) in ham env"
+#run_env ham python scripts/build_fermionic_hamiltonian_pyscf.py \
+  # "${CLUSTER_PATH}" \
+  # --site "${SITE}" \
+  # --charge "${HAM_CHARGE}" \
+  # --spin "${HAM_SPIN}" \
+  # --basis "${BASIS}" \
+  # --method "${METHOD}" \
+  # --region-cutoff "${REGION_CUTOFF}" \
+  # --n-occ "${N_OCC}" \
+  # --n-virt "${N_VIRT}" \
+  # --outdir "${HAM_OUTDIR}"
 
-echo "Hamiltonian outputs:"
-ls -la "${HAM_OUTDIR}" || true
+echo "==> Step 5: Build fermionic Hamiltonian (optional, heavy-element)"
+
+echo "Skipping Hamiltonian build in canonical example."
+echo "Reason: heavy-element (Ir) basis/ECP setup is required and not suitable for lightweight CI."
+echo "See scripts/build_fermionic_hamiltonian_pyscf.py for full functionality."
+
+#echo "Hamiltonian outputs:"
+#ls -la "${HAM_OUTDIR}" || true
 
 echo "==> Example workflow complete."
