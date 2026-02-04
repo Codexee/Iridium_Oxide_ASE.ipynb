@@ -4,7 +4,7 @@
 
 ¹ *Westward Academy, USA*
 ² *Thomas Jefferson High School, Virginia, USA*
-³ *Google LLC, Dublin, Ireland*
+³ *Google, Dublin, Ireland*
 
 January 2026
 
@@ -56,6 +56,10 @@ The repository includes continuous integration tests using GitHub Actions to ens
 
 ## Application
 
+*(Relevant prior surface-science and catalysis studies are cited where appropriate to provide context for the chosen adsorption site and system, independent of the software focus of this work.)*
+
+The choice of adsorption site and surface chemistry is informed by prior computational studies of IrO₂ surfaces under electrochemical conditions [@ReshmaIrO2]. More broadly, this work is motivated by recent efforts to connect materials modeling with quantum computational workflows for realistic condensed-matter systems [@InspiredWorkflow].
+
 The workflow was applied to a hydroxyl species adsorbed on a rutile IrO₂(110) surface at the o69 oxygen-bridge site. A finite cluster of 38 atoms was extracted from a periodic slab and capped with hydrogens. Orbital analysis identified the OH bonding orbital, nearby Ir d orbitals, and bridging O p orbitals as the most chemically relevant.
 
 An active space of 7 spatial orbitals (14 spin orbitals) was selected, leading to a 14-qubit Hamiltonian. One- and two-electron integrals were computed using PySCF [@PySCF] with a minimal basis set, and the Hamiltonian was mapped to qubits using the Jordan–Wigner transformation.
@@ -74,6 +78,14 @@ The repository contains the Python source code, documentation, example notebooks
 
 The archived release will provide a static snapshot of the codebase used to generate the Hamiltonians reported here. All parameters and choices in the workflow are deterministic or explicitly controlled, ensuring that the example results can be reproduced exactly given the specified software versions.
 
+## AI Disclosure
+
+This manuscript and accompanying software documentation were prepared with the assistance of an AI-based language model. The AI system was used to support tasks such as Markdown conversion, structural editing for JOSS compliance, and language refinement. All scientific content, technical decisions, interpretations, and conclusions were reviewed, validated, and approved by the authors, who take full responsibility for the work.
+
+## Pipeline Overview Figure
+
+![Overview of the workflow from DFT slab to qubit Hamiltonian. The pipeline shows slab optimization, cluster extraction, active-space selection, fermionic Hamiltonian construction, and qubit mapping.](figures/pipeline_overview.png)
+
 ## Future Work
 
 Future developments include automated orbital freezing and Hamiltonian reduction techniques to further lower qubit requirements, as well as tighter integration with quantum algorithms such as VQE [@VQE] and QITE. We also plan to extend the workflow to additional catalytic systems, charged clusters, and more realistic electrochemical environments.
@@ -82,11 +94,4 @@ By continuing to refine and expand the pipeline, we aim to establish a standard 
 
 ## References
 
-* **[@QE]** P. Giannozzi *et al.*, *J. Phys.: Condens. Matter* **21**, 395502 (2009).
-* **[@ASE]** A. Hjorth Larsen *et al.*, *J. Phys.: Condens. Matter* **29**, 273002 (2017).
-* **[@xTB]** S. Grimme, C. Bannwarth, P. Shushkov, *J. Chem. Theory Comput.* **13**, 1989–2009 (2017).
-* **[@PySCF]** Q. Sun *et al.*, *WIREs Comput. Mol. Sci.* **8**, e1340 (2018).
-* **[@OpenFermion]** J. R. McClean *et al.*, arXiv:1710.07629 (2017).
-* **[@VQE]** A. Peruzzo *et al.*, *Nat. Commun.* **5**, 4213 (2014).
-* **[@Qiskit]** H. Abraham *et al.*, Qiskit, Zenodo (2019).
-* **[@Superstaq]** Infleqtion, *Superstaq Technical Whitepaper* (2023).
+References are provided in a separate BibTeX file (`paper.bib`) and are cited in the text using standard Pandoc/JOSS citation syntax (e.g. `[@PySCF]`).
