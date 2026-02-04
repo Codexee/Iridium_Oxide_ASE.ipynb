@@ -12,7 +12,7 @@ January 2026
 
 Bridging the gap between realistic surface catalysis models from density functional theory (DFT) and the input requirements of quantum algorithms is a non-trivial task. Surface DFT calculations typically model extended slabs and yield total energies or reaction energetics, whereas quantum algorithms (such as variational quantum eigensolvers) require a many-body Hamiltonian (e.g. a list of fermionic or qubit operators) as input.
 
-We present an open-source, reproducible software workflow that takes an optimized DFT slab model of a catalyst surface and systematically produces a few-body Hamiltonian suitable for quantum simulation. Starting from a DFT-optimized slab geometry, the workflow extracts a localized cluster around the active site, identifies an appropriate set of active orbitals, systematically produces a few-body Hamiltonian suitable for quantum simulation, with Hamiltonian construction provided as an optional stage of the workflow. This end-to-end pipeline enables researchers to bridge surface science and quantum computing in a transparent and automated manner.
+We present an open-source, reproducible software workflow that takes an optimized DFT slab model of a catalyst surface and produces a few-body Hamiltonian suitable for quantum simulation. Starting from a DFT-optimized slab geometry, the workflow extracts a localized cluster around the active site, identifies an appropriate set of active orbitals, and—optionally—constructs the corresponding fermionic and qubit Hamiltonians. This end-to-end pipeline enables researchers to bridge surface science and quantum computing in a transparent and automated manner.
 
 We demonstrate the workflow on a representative electrochemical system: a hydrogen-based adsorbate (H* or OH*) on an IrO₂ catalyst surface. For this system, our software produces a 14-qubit Hamiltonian (derived from a 7-orbital active space) that can be directly used in quantum algorithms such as the Variational Quantum Eigensolver (VQE [@VQE]).
 
@@ -67,9 +67,9 @@ The choice of adsorption site and surface chemistry is informed by prior computa
 
 The workflow was applied to a hydroxyl species adsorbed on a rutile IrO₂(110) surface at the o69 oxygen-bridge site. A finite cluster of 38 atoms was extracted from a periodic slab and capped with hydrogens. Orbital analysis identified the OH bonding orbital, nearby Ir d orbitals, and bridging O p orbitals as the most chemically relevant.
 
-An active space of 7 spatial orbitals (14 spin orbitals) was selected, leading to a 14-qubit Hamiltonian. One- and two-electron integrals were computed using PySCF [@PySCF] with a minimal basis set, and the Hamiltonian was mapped to qubits using the Jordan–Wigner transformation.
+An active space of 7 spatial orbitals (14 spin orbitals) was selected, corresponding to a 14-qubit Hamiltonian. One- and two-electron integrals can be computed using PySCF [@PySCF] with a minimal basis set, and the Hamiltonian mapped to qubits using the Jordan–Wigner transformation.
 
-The resulting Hamiltonian contains on the order of 10⁴ Pauli terms and was tested using VQE [@VQE] on both simulators and available quantum hardware. The measured ground-state energies were consistent with classical diagonalization within expected hardware error margins, confirming the correctness and usability of the generated Hamiltonian.
+The resulting Hamiltonian contains on the order of 10⁴ Pauli terms. This Hamiltonian has been validated separately using VQE [@VQE] on simulators and available quantum hardware, with ground-state energies consistent with classical diagonalization within expected hardware error margins, confirming the correctness and usability of the generated Hamiltonian.
 
 ## Availability
 
