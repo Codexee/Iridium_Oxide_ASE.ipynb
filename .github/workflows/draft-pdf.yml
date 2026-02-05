@@ -6,6 +6,8 @@ on:
       - paper.bib
       - figures/pipeline_overview.png
       - .github/workflows/draft-pdf.yml
+permissions:
+  contents: write
 jobs:
   paper:
     runs-on: ubuntu-latest
