@@ -1,5 +1,3 @@
-bibliography: paper.bib
-
 # A Reproducible Workflow for Extracting Quantum Hamiltonians from Surface–Adsorbate Models
 
 **Manisha Malhotra**¹, **Neil Ramarapu**², **Fabio Rinaldi**³
