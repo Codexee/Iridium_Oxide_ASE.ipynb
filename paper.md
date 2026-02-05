@@ -32,13 +32,13 @@ affiliations:
 
 Bridging the gap between realistic surface catalysis models from density functional theory (DFT) and the input requirements of quantum algorithms is a non-trivial task. Surface DFT calculations typically model extended slabs and yield total energies or reaction energetics, whereas quantum algorithms (such as variational quantum eigensolvers) require a many-body Hamiltonian (e.g. a list of fermionic or qubit operators) as input.
 
-We present an open-source, reproducible software workflow that takes an optimized DFT slab model of a catalyst surface and produces a few-body Hamiltonian suitable for quantum simulation. Starting from a DFT-optimized slab geometry, the workflow extracts a localized cluster around the active site, identifies an appropriate set of active orbitals, and—optionally—constructs the corresponding fermionic and qubit Hamiltonians. This end-to-end pipeline enables researchers to bridge surface science and quantum computing in a transparent and automated manner.
+We present an open-source, reproducible software workflow that takes an optimized DFT slab model of a catalyst surface and produces a few-body Hamiltonian suitable for quantum simulation. Starting from a DFT-optimized slab geometry, the workflow extracts a localized cluster around the active site, identifies an appropriate set of active orbitals, and—optionally—constructs the corresponding fermionic and qubit Hamiltonians. Orbital selection is performed using a deterministic, chemically motivated heuristic based on orbital localization and energy proximity. This end-to-end pipeline enables researchers to bridge surface science and quantum computing in a transparent and automated manner.
 
 We demonstrate the workflow on a representative electrochemical system: a hydrogen-based adsorbate (H* or OH*) on an IrO₂ catalyst surface. For this system, our software produces a 14-qubit Hamiltonian (derived from a 7-orbital active space) that can be directly used in quantum algorithms such as the Variational Quantum Eigensolver (VQE [@VQE]).
 
-## Statement of Need
+## State of the Field
 
-The hydrogen evolution reaction (HER) is a key process in electrochemistry (2H⁺ + 2e⁻ → H₂) and its efficiency is greatly influenced by the interaction between hydrogen and catalyst surface sites. While DFT has been the workhorse for studying such catalytic systems, it often struggles when confronted with strongly correlated electrons or multiple spin-state character that can occur in transition metal compounds.
+Electronic structure methods for heterogeneous catalysis have traditionally relied on DFT is a key process in electrochemistry (2H⁺ + 2e⁻ → H₂) and its efficiency is greatly influenced by the interaction between hydrogen and catalyst surface sites. While DFT has been the workhorse for studying such catalytic systems, it often struggles when confronted with strongly correlated electrons or multiple spin-state character that can occur in transition metal compounds.
 
 In particular, iridium-based catalysts present a challenge: Ir is a heavy transition metal where relativistic effects and variable oxidation states can render standard DFT approximate or unreliable in capturing certain electronic structure features (such as spin-state changes upon adsorption). To our knowledge, no prior studies have applied quantum algorithms to model HER on Ir-based catalysts, highlighting a methodological gap.
 
@@ -48,14 +48,14 @@ However, a major obstacle remains: how to obtain the required fermionic Hamilton
 
 Our software addresses this unmet need by providing a reproducible pipeline that takes an optimized slab model as input and produces a Hamiltonian ready for quantum simulation. This capability is especially important for systems like IrO₂-catalyzed HER, where the surface can cycle through oxide and hydroxide states involving multiple Ir oxidation states. By facilitating the construction of active-space Hamiltonians for these challenging catalytic sites, our workflow opens the door to applying resource-aware quantum algorithms to heterogeneous catalysis.
 
-## Software Description
+## Software Design
 
 
-### Pipeline Overview Figure
+#### Pipeline Overview Figure
 
 ![Overview of the workflow from DFT slab to qubit Hamiltonian. The pipeline shows slab optimization, cluster extraction, active-space selection, fermionic Hamiltonian construction, and qubit mapping.](figures/pipeline_overview.png)
 
-### Workflow Overview
+### Workflow overview
 
 The workflow proceeds through a sequence of transformations from a realistic surface model to a minimal quantum simulation model:
 
@@ -71,7 +71,13 @@ The workflow proceeds through a sequence of transformations from a realistic sur
 
 Each stage of the pipeline reduces complexity in a controlled and reproducible manner, transforming an extended slab into a few-qubit Hamiltonian while preserving the essential physics of the surface–adsorbate interaction.
 
-### Implementation Details
+#### Active-space identification
+
+Following cluster extraction, the workflow performs an initial semiempirical electronic structure calculation using GFN-xTB to obtain a ranked list of molecular orbitals. For each orbital, atomic-orbital contributions are computed and used to quantify localization on adsorbate atoms and surface atoms directly bonded to the adsorbate. Orbitals are further filtered based on their energetic proximity to the Fermi level.
+
+The active space is constructed by selecting orbitals that exhibit significant localization on the adsorbate–surface bond region and lie within a user-defined energy window. Spin-paired orbitals are enforced, and the final active space size is capped to ensure tractable qubit requirements. All selection criteria are deterministic and configurable.
+
+## Research impact statement
 
 The software is implemented in Python and builds on open-source libraries including ASE, xTB, PySCF [@PySCF], and OpenFermion [@OpenFermion]. ASE is used for structure handling and cluster extraction, while xTB provides rapid orbital screening. PySCF [@PySCF] is employed for higher-fidelity electronic structure calculations and integral generation within the selected active space.
 
@@ -79,13 +85,14 @@ OpenFermion [@OpenFermion] is used to perform fermion-to-qubit mappings such as 
 
 The repository includes continuous integration tests using GitHub Actions to ensure that updates to the code do not break the workflow. A Jupyter notebook example demonstrates the full pipeline on an IrO₂ surface with an adsorbate, producing a reference Hamiltonian that is automatically checked for consistency. To ensure reasonable execution times for continuous integration and example usage, the most computationally expensive stages of the workflow—specifically the construction and qubit mapping of the full fermionic Hamiltonian—are provided as optional steps. The default example workflow executes slab processing, cluster extraction, and orbital analysis, while Hamiltonian generation can be enabled by the user when sufficient computational resources are available.
 
-## Application
+
+### Application
 
 *(Relevant prior surface-science and catalysis studies are cited where appropriate to provide context for the chosen adsorption site and system, independent of the software focus of this work.)*
 
 The choice of adsorption site and surface chemistry is informed by prior computational studies of IrO₂ surfaces under electrochemical conditions [@ReshmaIrO2]. More broadly, this work is motivated by recent efforts to connect materials modeling with quantum computational workflows for realistic condensed-matter systems [@InspiredWorkflow].
 
-The workflow was applied to a hydroxyl species adsorbed on a rutile IrO₂(110) surface at the o69 oxygen-bridge site. A finite cluster of 38 atoms was extracted from a periodic slab and capped with hydrogens. Orbital analysis identified the OH bonding orbital, nearby Ir d orbitals, and bridging O p orbitals as the most chemically relevant.
+The workflow was applied to a hydroxyl species adsorbed on a rutile IrO₂(110) surface at the o69 oxygen-bridge site. A finite cluster of 38 atoms was extracted from a periodic slab and capped with hydrogens. Orbital analysis identified the OH bonding orbital, nearby Ir d orbitals, and bridging O p orbitals as the most chemically relevant. 
 
 An active space of 7 spatial orbitals (14 spin orbitals) was selected, corresponding to a 14-qubit Hamiltonian. One- and two-electron integrals can be computed using PySCF [@PySCF] with a minimal basis set, and the Hamiltonian mapped to qubits using the Jordan–Wigner transformation.
 
@@ -111,7 +118,7 @@ This manuscript and accompanying software documentation were prepared with the a
 
 ## Future Work
 
-Future developments include automated orbital freezing and Hamiltonian reduction techniques to further lower qubit requirements, as well as tighter integration with quantum algorithms such as VQE [@VQE] and QITE. We also plan to extend the workflow to additional catalytic systems, charged clusters, and more realistic electrochemical environments.
+Future developments include automated orbital freezing and Hamiltonian reduction techniques to further lower qubit requirements, as well as tighter integration with quantum algorithms such as VQE [@VQE]. We also plan to extend the workflow to additional catalytic systems, charged clusters, and more realistic electrochemical environments.
 
 By continuing to refine and expand the pipeline, we aim to establish a standard toolkit for quantum computational catalysis, enabling routine application of quantum algorithms to complex surface chemistry problems.
 
