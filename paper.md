@@ -28,14 +28,6 @@ affiliations:
 
 # A Reproducible Workflow for Extracting Quantum Hamiltonians from Surface–Adsorbate Models
 
-**Manisha Malhotra**¹, **Neil Ramarapu**², **Fabio Rinaldi**³
-
-¹ *Westward Academy, USA*
-² *Thomas Jefferson High School, Virginia, USA*
-³ *Google, Dublin, Ireland*
-
-January 2026
-
 ## Summary
 
 Bridging the gap between realistic surface catalysis models from density functional theory (DFT) and the input requirements of quantum algorithms is a non-trivial task. Surface DFT calculations typically model extended slabs and yield total energies or reaction energetics, whereas quantum algorithms (such as variational quantum eigensolvers) require a many-body Hamiltonian (e.g. a list of fermionic or qubit operators) as input.
