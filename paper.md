@@ -1,6 +1,31 @@
 ---
+title: "A Reproducible Workflow for Extracting Quantum Hamiltonians from Surface–Adsorbate Models"
 bibliography: paper.bib
+date: January 2026
+tags:
+  - quantum computing
+  - surface science
+  - density functional theory
+  - catalysis
+  - Hamiltonian construction
+
+authors:
+  - name: Manisha Malhotra
+    affiliation: 1
+  - name: Neil Ramarapu
+    affiliation: 2
+  - name: Fabio Rinaldi
+    affiliation: 3
+
+affiliations:
+  - name: Westward Academy, USA
+    index: 1
+  - name: Thomas Jefferson High School, Virginia, USA
+    index: 2
+  - name: Google, Dublin, Ireland
+    index: 3
 ---
+
 # A Reproducible Workflow for Extracting Quantum Hamiltonians from Surface–Adsorbate Models
 
 **Manisha Malhotra**¹, **Neil Ramarapu**², **Fabio Rinaldi**³
