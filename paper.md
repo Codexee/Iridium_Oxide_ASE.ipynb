@@ -26,8 +26,6 @@ affiliations:
     index: 3
 ---
 
-# A Reproducible Workflow for Extracting Quantum Hamiltonians from Surface–Adsorbate Models
-
 ## Summary
 
 Bridging the gap between realistic surface catalysis models from density functional theory (DFT) and the input requirements of quantum algorithms is a non-trivial task. Surface DFT calculations typically model extended slabs and yield total energies or reaction energetics, whereas quantum algorithms (such as variational quantum eigensolvers) require a many-body Hamiltonian (e.g. a list of fermionic or qubit operators) as input.
@@ -36,9 +34,9 @@ We present an open-source, reproducible software workflow that takes an optimize
 
 We demonstrate the workflow on a representative electrochemical system: a hydrogen-based adsorbate (H* or OH*) on an IrO₂ catalyst surface. For this system, our software produces a 14-qubit Hamiltonian (derived from a 7-orbital active space) that can be directly used in quantum algorithms such as the Variational Quantum Eigensolver (VQE [@VQE]).
 
-## State of the Field
+## Statement of Need
 
-Electronic structure methods for heterogeneous catalysis have traditionally relied on DFT is a key process in electrochemistry (2H⁺ + 2e⁻ → H₂) and its efficiency is greatly influenced by the interaction between hydrogen and catalyst surface sites. While DFT has been the workhorse for studying such catalytic systems, it often struggles when confronted with strongly correlated electrons or multiple spin-state character that can occur in transition metal compounds.
+Electronic structure methods for heterogeneous catalysis have traditionally relied on density functional theory (DFT) to model reaction energetics and adsorption phenomena at catalyst surfaces. While DFT has been the workhorse for studying such catalytic systems, it often struggles when confronted with strongly correlated electrons or multiple spin-state character that can occur in transition metal compounds.
 
 In particular, iridium-based catalysts present a challenge: Ir is a heavy transition metal where relativistic effects and variable oxidation states can render standard DFT approximate or unreliable in capturing certain electronic structure features (such as spin-state changes upon adsorption). To our knowledge, no prior studies have applied quantum algorithms to model HER on Ir-based catalysts, highlighting a methodological gap.
 
@@ -75,7 +73,10 @@ Each stage of the pipeline reduces complexity in a controlled and reproducible m
 
 Following cluster extraction, the workflow performs an initial semiempirical electronic structure calculation using GFN-xTB to obtain a ranked list of molecular orbitals. For each orbital, atomic-orbital contributions are computed and used to quantify localization on adsorbate atoms and surface atoms directly bonded to the adsorbate. Orbitals are further filtered based on their energetic proximity to the Fermi level.
 
-The active space is constructed by selecting orbitals that exhibit significant localization on the adsorbate–surface bond region and lie within a user-defined energy window. Spin-paired orbitals are enforced, and the final active space size is capped to ensure tractable qubit requirements. All selection criteria are deterministic and configurable.
+The active space is constructed by selecting orbitals that exhibit significant localization on the adsorbate–surface bond region and lie within a user-defined energy window. Spin-paired orbitals are enforced, and the final active space size is capped to ensure tractable qubit requirements. All selection criteria are deterministic and configurable.  
+
+The energy window, localization thresholds, and maximum active-space size are user-configurable parameters, allowing the workflow to be adapted to different surface chemistries and computational budgets.
+
 
 ## Research impact statement
 
@@ -92,11 +93,11 @@ The repository includes continuous integration tests using GitHub Actions to ens
 
 The choice of adsorption site and surface chemistry is informed by prior computational studies of IrO₂ surfaces under electrochemical conditions [@ReshmaIrO2]. More broadly, this work is motivated by recent efforts to connect materials modeling with quantum computational workflows for realistic condensed-matter systems [@InspiredWorkflow].
 
-The workflow was applied to a hydroxyl species adsorbed on a rutile IrO₂(110) surface at the o69 oxygen-bridge site. A finite cluster of 38 atoms was extracted from a periodic slab and capped with hydrogens. Orbital analysis identified the OH bonding orbital, nearby Ir d orbitals, and bridging O p orbitals as the most chemically relevant. 
+The workflow was applied to a hydroxyl species adsorbed on a rutile IrO₂(110) surface at the o69 oxygen-bridge site. A finite cluster of 38 atoms was extracted from a periodic slab and capped with hydrogens. Orbital analysis identified the OH bonding orbital, nearby Ir d orbitals, and bridging O p orbitals as the most chemically relevant. These orbitals were selected using the default workflow criteria based on localization and energy proximity, without manual intervention.  
 
 An active space of 7 spatial orbitals (14 spin orbitals) was selected, corresponding to a 14-qubit Hamiltonian. One- and two-electron integrals can be computed using PySCF [@PySCF] with a minimal basis set, and the Hamiltonian mapped to qubits using the Jordan–Wigner transformation.
 
-The resulting Hamiltonian contains on the order of 10⁴ Pauli terms. This Hamiltonian has been validated separately using VQE [@VQE] on simulators and available quantum hardware, with ground-state energies consistent with classical diagonalization within expected hardware error margins, confirming the correctness and usability of the generated Hamiltonian.
+The resulting Hamiltonian contains on the order of ~10⁴ Pauli terms. This Hamiltonian has been validated separately using VQE [@VQE] on simulators and available quantum hardware, with ground-state energies consistent with classical diagonalization within expected hardware error margins, confirming the correctness and usability of the generated Hamiltonian.
 
 ## Availability
 
@@ -122,6 +123,4 @@ Future developments include automated orbital freezing and Hamiltonian reduction
 
 By continuing to refine and expand the pipeline, we aim to establish a standard toolkit for quantum computational catalysis, enabling routine application of quantum algorithms to complex surface chemistry problems.
 
-## References
-
-References are provided in a separate BibTeX file (`paper.bib`) and are cited in the text using standard Pandoc/JOSS citation syntax (e.g. `[@PySCF]`).
+## References  
