@@ -6,7 +6,6 @@ on:
       - paper.bib
       - figures/pipeline_overview.png
       - .github/workflows/draft-pdf.yml
-
 jobs:
   paper:
     runs-on: ubuntu-latest
@@ -20,6 +19,7 @@ jobs:
           journal: joss
           # This should be the path to the paper within your repo.
           paper-path: paper.md
+          filters: run-lua
       - name: Upload
         uses: actions/upload-artifact@v4
         with:
